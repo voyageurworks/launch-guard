@@ -1,0 +1,46 @@
+{
+  "name": "@voyageurworks/launch-guard",
+  "version": "0.1.0",
+  "description": "Scan a private git repo before it goes public and report secrets, personal details, restricted terms and reachable old commits without printing private data.",
+  "license": "MIT",
+  "repository": { "type": "git", "url": "git+https://github.com/voyageurworks/launch-guard.git" },
+  "homepage": "https://github.com/voyageurworks/launch-guard#readme",
+  "bugs": { "url": "https://github.com/voyageurworks/launch-guard/issues" },
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "launch-guard": "dist/main.js"
+  },
+  "files": [
+    "dist",
+    "skill",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "keywords": [
+    "git",
+    "security",
+    "secrets",
+    "pre-publish",
+    "claude-code",
+    "codex"
+  ],
+  "scripts": {
+    "build": "tsc -p . && node scripts/build-skill.mjs",
+    "check": "tsc -p . --noEmit",
+    "test": "vitest run",
+    "prepublishOnly": "pnpm check && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "esbuild": "^0.28.2",
+    "typescript": "7.0.2",
+    "vitest": "^5.0.5"
+  }
+}

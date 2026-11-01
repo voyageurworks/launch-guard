@@ -1,0 +1,153 @@
+# launch-guard
+
+A check to run before you make a private git repository public. It looks for the things you would regret leaving in a public repo and tells you where they are, without ever printing them.
+
+By Voyageur Works. MIT licence. Planned home of the project: `https://github.com/voyageurworks/launch-guard`.
+
+**Status:** version 0.x, not yet published to npm. Today you install it by copying the `skill/` folder (see Install below). The planned home above is an address for later, not something that exists yet.
+
+## Why
+
+More and more repositories are written with an AI assistant, and the assistant is also the one you ask "is this safe to publish?" The trouble is that a normal scanner prints what it finds. If an AI runs it, your secret key or your home address is now in the chat.
+
+launch-guard is built so that cannot happen. It only reports **where** something is (file and line), **what kind** of problem it is, and which entry of your private list matched. It does not print the secret, any part of it, a value from your list, an author name or a commit message. It never changes your files, rewrites history or pushes. The only network use is a read-only `git ls-remote` against your configured remotes (skip it with `--offline`), and the only file it writes is the template from `--init-list`.
+
+## Install
+
+You need Node 22 or newer, and either Claude Code or Codex.
+
+1. Get this project from `https://github.com/voyageurworks/launch-guard` (the project's address once published) and find the `skill/` folder.
+2. Copy that whole `skill/` folder into your assistant's skills directory and name the copy `launch-guard`. The same skill folder works in both; where each tool looks for skills differs, so check your tool's documentation for the right directory.
+3. Ask your assistant something like "check this repo before I make it public", or run it yourself (next section).
+
+There is nothing else to install: the script in the folder has no dependencies.
+
+## First run, no setup
+
+```
+node skill/launch-guard.mjs <repo>
+```
+
+Replace `<repo>` with the path of the repository (leave it out to scan the current folder). Add `--offline` to skip the one network step (see "Network and files" below). Point it at the top folder of a repository: for a plain folder or a subfolder of a repository it skips the history and old-commit checks and says so. With no private list yet, it still checks for secrets, old commits that stay reachable, and the basics, and says plainly that the personal and restricted checks were skipped.
+
+## In scripts, before a push, and in CI
+
+- `--json` prints the same report as one JSON document (`version`, `result`, `counts`, `findings`), with the same six fixed fields per finding and the same promise: no secret, no list value, no commit message. The exit code is the same, so `node skill/launch-guard.mjs . --json --offline > report.json` works in any script.
+- `--print-hook` prints a git `pre-push` hook to the screen. It writes nothing; you save it yourself as `.git/hooks/pre-push` (the tool never edits a repository) and put the path of `launch-guard.mjs` into it. Any blocking finding then stops the push.
+- [docs/ci.md](docs/ci.md) has a ready GitHub Actions job. A runner has no private list, so CI covers secrets, history, old commits and basics; the personal and restricted checks stay on your own machine.
+
+## Your private list
+
+To catch your own names, address, school, family or codewords, the tool needs a list of them. The list lives outside the repo so it can never be published by accident.
+
+```
+node skill/launch-guard.mjs --init-list
+```
+
+This creates a template at `~/.config/launch-guard/private-list.txt`. It will not overwrite a file and will not write inside a git repository. Open it in **your own editor** and add one entry per line, in the format `kind|regex`:
+
+```
+personal|zq-example-name
+restricted|zq-example-codeword
+```
+
+`kind` is `personal` or `restricted`. The part after `|` is a regular expression, matched without regard to upper or lower case. Lines starting with `#` and blank lines are ignored. To use a list in another place, add `--list <file>`.
+
+**Never paste the list into a chat, and never ask an assistant to open it.** The assistant does not need the values. The report will say "list entry 3", and you can look up line 3 yourself.
+
+## The four checks
+
+1. **Secrets.** Known key formats and long random-looking strings next to words like key, token or password, in your current files. It follows a value that sits on a later line than its key (a YAML block, a continuation, or a string split with `+` or a backslash, over up to four lines), reads quoted values that contain symbols, and knows the formats of common providers (cloud, payment, chat and developer tokens) as well as `Authorization: Bearer` headers.
+2. **Personal details and restricted terms.** Everything in your private list, matched against file contents and against file and folder names.
+3. **History.** Every branch, tag and the reflog, checked for the same secrets and list entries in old versions of files, in commit messages, in annotated tag messages and taggers, in author names and emails, and in what a merge commit changed beyond an automatic merge (such as a secret typed in while resolving a conflict). The merge check needs git 2.36 or newer; on an older git it says "history incomplete".
+4. **Old commits still reachable.** Leftover rewrite refs, extra refs and hidden pull-request refs on your remotes that would still be downloadable after a history rewrite, plus local unreachable objects (a prompt to check, not proof of a leak).
+
+It also runs a few basics: the presence of a LICENSE, a SECURITY file and CI, a funding file that is switched on, and absolute paths to a user profile folder (such as `C:\Users\<name>`) in assistant files like `CLAUDE.md`.
+
+## Reading the report
+
+Each line looks like `path:line label (list entry N)`, grouped by level. The last line is `RESULT: PASS` or `RESULT: FAIL` (with `--json`, the `result` field says `pass` or `fail` instead).
+
+| Label | What it means | What to do |
+| --- | --- | --- |
+| secret format | A string shaped like a known key or token | Remove it from the file, then treat the key as exposed and replace it at its provider |
+| secret near keyword | A long random-looking value next to a word like key, token or password | Check the line yourself; remove it, or mark it allowed if it is harmless (see below) |
+| tracked env file | A `.env` file is tracked by git (its contents are never read) | Stop tracking it and keep it out of the repo; replace any secrets in it |
+| personal detail | A `personal` entry from your list matches in a file | Edit the line yourself |
+| restricted term | A `restricted` entry from your list matches in a file | Edit the line yourself |
+| path matches list | A file or folder name matches your list (shown as `[redacted]`) | Rename it |
+| list inside repo | Your private list is inside the folder being scanned | Move it out of the repo |
+| secret in history | A secret appears in an old version of a file | See the note on history below |
+| term in history | A list entry appears in an old commit, message, author or ref name | See the note on history below |
+| recommend a fresh repository | A rewrite leftover (`refs/original`) or a hidden pull-request ref on a remote would stay reachable | Publish from a brand-new repository with no old history |
+| unreachable object | Git still holds an object that no branch reaches. Staging, amending, rebasing and `git stash drop` all leave these until git cleans up. They are local and a push does not publish them | A warn, not proof of a leak: check that nothing sensitive was in the file you changed. To clear them, run `git reflog expire --expire-unreachable=now --all`, then `git gc --prune=now` (`git gc --prune=now` alone only clears re-staged blobs and dropped stash entries, because the reflog still holds commits left by an amend or rebase) |
+| extra ref | A branch, tag or stash beyond the current branch | Check whether it should be public |
+| not a repository root | The folder is not the top level of a git repository (a plain folder, or a subfolder of another repository), so the history and old-commit checks did not run | Run the tool on the repository's top folder |
+| user profile path | A file holds an absolute path into a user profile folder | Replace it with a relative path or a placeholder |
+| missing LICENSE, missing SECURITY, missing CI | A basics file is absent | Add one |
+| funding file active | A funding file is switched on | Make sure that is what you want before going public |
+| file skipped, more files skipped | A file was too large, binary, a symlink or unreadable, so it was not read | Look at it yourself if it matters |
+| history incomplete, no commits, no remote | The tool could not look at part of the history | Informational; the check for that part did not run |
+| nested repository not scanned | An untracked folder inside the repository is itself a git repository. Its files and history are not part of this scan, and a plain `git add` would not publish them | Scan it on its own, or keep it out of the folder you publish |
+| submodule not scanned | The repository has submodules (another repository each). Their files and history are not part of this scan | Run the tool inside each submodule before you publish |
+| remote not checked | The hidden pull-request ref check did not run: `--offline` was given, or git could not reach the remote without a prompt. The tool never asks for a password, so a private HTTPS remote that needs credentials will often land here | Run the tool from a shell where git already has credentials for that remote (without `--offline`). If the repository was ever pushed with sensitive content, treat it as needing a fresh repository |
+| checks skipped: no private list, private list has no entries | The personal and restricted checks had nothing to use | Create and fill in your list |
+
+For a harmless match (a test file, a documented example) put `launch-guard-allow: <reason>` in a comment on that line or the line above, with a real reason. Only secret findings and the user-profile-path finding are lowered from block to warn, and only in test files (`*.test.*`, `*.spec.*`, `*_test.*`, `test_*`) and under `test`, `tests`, `spec`, `specs`, `fixtures`, `__tests__`, `__fixtures__`, `__mocks__`, `testdata` and `docs/examples` folders. Findings from your private list (personal, restricted, matching paths, history) always stay block there: those are things you said must not be public, so use `launch-guard-allow: <reason>` for a real exception. Files with a key or credential extension (`pem key p12 pfx env crt cer jks keystore asc gpg ppk kdbx`) and names starting `.env` are never lowered, whatever their folder or name.
+
+### Levels and exit codes
+
+- **block**: must be fixed. Any block makes the result FAIL.
+- **warn**: look at it.
+- **info**: a note, such as a skipped file or a missing list.
+
+Exit code `0` means no blocking findings, `1` means at least one blocking finding, and `2` means the tool could not run (a bad path, a bad list, or an internal error, which prints one fixed message and nothing else).
+
+`PASS` is not a promise that the repository is safe. It means these checks found nothing that blocks.
+
+## Network and files
+
+- The only network use is a read-only `git ls-remote --refs` against each remote you have configured, to look for hidden pull-request refs. It never prompts for credentials, and it uses your own ssh setting (`GIT_SSH_COMMAND`, `core.sshCommand` or `GIT_SSH`) the way git would; for a plain `ssh` it only adds batch mode so nothing waits for a password. Skip it with `--offline`, which adds an info note that the remote was not checked (or, when no remote is configured, a "no remote" note instead).
+- The only file the tool writes is the template from `--init-list`, and only if nothing is there yet and the location is outside any git repository.
+- It sends nothing anywhere else and has no telemetry.
+
+## Stop your assistant reading the list
+
+The skill tells the assistant never to open your list, but a skill is only advice. To enforce it in Claude Code, add a deny rule for the list's path to your user settings (`~/.claude/settings.json`). It has this shape:
+
+```json
+{
+  "permissions": {
+    "deny": ["Read(~/.config/launch-guard/private-list.txt)"]
+  }
+}
+```
+
+This follows Claude Code's documented permission rule form `Read(path)`, where `~/` means your home folder. Settings change over time, so check the current [permissions documentation](https://code.claude.com/docs/en/permissions) before relying on it.
+
+Tested 2026-10-31 on Claude Code 2.1.316: with the permission mode set to `bypassPermissions`, a headless session was still refused when it asked the Read tool for a file named in such a rule, while a control file in the same folder read fine. So the rule holds in that mode too; re-check it after Claude Code updates.
+
+What this does and does not do: it blocks the assistant's built-in file-reading tool, and Claude Code also applies Read rules to common shell commands that name the file. It does not reliably stop every command the assistant could run in a shell (for example one that searches a whole folder without naming the file). For stronger protection, also cover the path with Claude Code's sandbox read restrictions, or keep the list somewhere the assistant's session cannot reach. See the same documentation.
+
+Codex has its own permission and sandbox settings, and they should be set so that the assistant cannot read the list's location. Use Codex's own documentation for the exact settings; they are not repeated here.
+
+## Honest limits
+
+- **A chat already holds everything typed or read in it.** If you paste a secret or your list into a conversation, no tool can take it back out.
+- **Fixing a leak means someone sees the line.** The report tells you where. You or your assistant still has to open that spot to change it.
+- **The existence of a category is disclosed.** "A personal detail was found in this file" is itself information, even though the detail is not shown.
+- **A scanner that matches patterns cannot see everything.** A secret with no key word beside it and no known provider format (for example a bare random string in a variable named `x`), one split over more than four lines or inside a Python parenthesised string, a triple-quoted block, a heredoc or a template literal, one that is encoded or encrypted, or one inside a binary or very large file is not found. `PASS` means these rules found nothing, not that nothing is there. Rotate any key that was ever committed.
+- **GitHub's own caches cannot be seen.** If the repository was ever pushed with something sensitive, copies may live in places this tool cannot check (forks, pull-request refs, cached views). The safe answer is a fresh repository with no history, and the tool says so rather than claiming a rewrite is enough.
+- **Amending, rebasing, staging and stashing leave old objects behind.** They are no longer on any branch but stay in the repository until git cleans up (first `git reflog expire --expire-unreachable=now --all`, then `git gc --prune=now`; the reflog keeps amended and rebased commits alive). They are local and a push does not publish them, so they only warn.
+- **Example env files are read.** `.env.example`, `.env.sample` and `.env.template` are scanned for secrets like any other file; other `.env` files are flagged by name and never opened.
+- **It is not a replacement for a general secret scanner**, and it gives no legal or licence advice.
+
+## Contributing and security
+
+Issues and pull requests are welcome; please read the [code of conduct](CODE_OF_CONDUCT.md). Keep test data obviously fake (words like `zq-example`), and never include anything real. Run `pnpm check`, `pnpm test` and `pnpm build` before sending a change, and commit the rebuilt `skill/launch-guard.mjs` with it.
+
+To report a vulnerability, including any case where the tool prints something private, see [SECURITY.md](SECURITY.md).
+
+## Licence
+
+MIT. See [LICENSE](LICENSE).

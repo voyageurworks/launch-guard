@@ -1,0 +1,30 @@
+name: Missed detection or false alarm
+description: A real problem the scanner did not flag, or a harmless line it flagged.
+labels: [detection]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Use a made-up example, never the real value.** Build a fake that has the same shape (same prefix, length and surrounding text) as the real one. Do not paste anything from your own repository.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: Which was it?
+      options:
+        - Missed detection (a real problem was not flagged)
+        - False alarm (a harmless line was flagged)
+    validations:
+      required: true
+  - type: textarea
+    id: example
+    attributes:
+      label: Made-up example
+      description: The smallest file content that shows it, with fake values only.
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: shape
+    attributes:
+      label: Where does this kind of value come from?
+      description: For example the provider and the documented format of the token, or the file type it appears in.

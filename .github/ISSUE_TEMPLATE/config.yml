@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security problem privately
+    url: https://github.com/voyageurworks/launch-guard/security/advisories/new
+    about: If the tool printed a secret, a value from your private list, or anything it should not, report it here and not in a public issue. See SECURITY.md.

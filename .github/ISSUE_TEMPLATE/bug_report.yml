@@ -1,0 +1,28 @@
+name: Bug report
+description: The tool crashed, hung, gave a wrong exit code, or printed something confusing.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        **Never paste real secrets, names, addresses, paths or your private list here.** Use made-up values. If the tool printed something private, stop and use the private security report instead (see SECURITY.md).
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: The command you ran, and a tiny made-up repository that shows it if you can.
+    validations:
+      required: true
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: "Output of `node --version` and `git --version`, plus your operating system."
+    validations:
+      required: true
