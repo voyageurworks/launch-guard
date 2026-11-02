@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.0 - unreleased
+## 0.1.0 - 2026-11-01
 
 First version. Not yet published to npm; today it is used by copying the `skill/` folder.
 

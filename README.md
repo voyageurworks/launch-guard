@@ -2,9 +2,9 @@
 
 A check to run before you make a private git repository public. It looks for the things you would regret leaving in a public repo and tells you where they are, without ever printing them.
 
-By Voyageur Works. MIT licence. Planned home of the project: `https://github.com/voyageurworks/launch-guard`.
+By Voyageur Works. MIT licence. Home of the project: `https://github.com/voyageurworks/launch-guard`.
 
-**Status:** version 0.x, not yet published to npm. Today you install it by copying the `skill/` folder (see Install below). The planned home above is an address for later, not something that exists yet.
+**Status:** version 0.x, the repository is public, but the package is not published to npm yet. Today you install it by copying the `skill/` folder (see Install below).
 
 ## Why
 
@@ -16,7 +16,7 @@ launch-guard is built so that cannot happen. It only reports **where** something
 
 You need Node 22 or newer, and either Claude Code or Codex.
 
-1. Get this project from `https://github.com/voyageurworks/launch-guard` (the project's address once published) and find the `skill/` folder.
+1. Get this project from `https://github.com/voyageurworks/launch-guard` and find the `skill/` folder.
 2. Copy that whole `skill/` folder into your assistant's skills directory and name the copy `launch-guard`. The same skill folder works in both; where each tool looks for skills differs, so check your tool's documentation for the right directory.
 3. Ask your assistant something like "check this repo before I make it public", or run it yourself (next section).
 
