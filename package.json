@@ -29,7 +29,12 @@
     "secrets",
     "pre-publish",
     "claude-code",
-    "codex"
+    "codex",
+    "secret-scanning",
+    "secrets-detection",
+    "security-tools",
+    "pre-push",
+    "ai-agents"
   ],
   "scripts": {
     "build": "tsc -p . && node scripts/build-skill.mjs",
