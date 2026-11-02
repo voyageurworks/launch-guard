@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.1 - 2026-11-02
+
+No change to the scanner. Releases now go through a two-job workflow with an approval step and are published from GitHub Actions with a provenance statement (npm trusted publishing); more search keywords in `package.json`.
+
 ## 0.1.0 - 2026-11-01
 
 First version. Published to npm as `@voyageurworks/launch-guard` (published by hand, so this first version has no provenance badge); it can also be used by copying the `skill/` folder.
