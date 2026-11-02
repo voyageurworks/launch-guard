@@ -1,3 +1,5 @@
+<img src=".github/brand/icon.png" align="right" width="112" alt="launch-guard icon">
+
 # launch-guard
 
 [![npm](https://img.shields.io/npm/v/@voyageurworks/launch-guard.svg)](https://www.npmjs.com/package/@voyageurworks/launch-guard)
