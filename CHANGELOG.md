@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.1.1 - 2026-11-02
+## 0.1.2 - 2026-11-02
+
+Version 0.1.1 was tagged but never published to npm (its release job failed before the publish step), so 0.1.2 is the first version published from GitHub Actions.
 
 No change to the scanner. Releases now go through a two-job workflow with an approval step and are published from GitHub Actions with a provenance statement (npm trusted publishing); more search keywords in `package.json`.
 
