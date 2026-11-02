@@ -1,14 +1,17 @@
 name: Release
 
-# Publishes to npm when a GitHub release is published. Uses npm trusted publishing (OIDC):
-# no npm token is stored anywhere. Set up once on npmjs.com (see docs/releasing.md).
+# Publishes to npm when a GitHub release is published. Uses npm trusted publishing (OIDC): no npm token is stored anywhere.
+# Set up once on npmjs.com (see docs/releasing.md).
+#
+# Two jobs, so the job that can mint an npm identity never runs dependency code:
+#   verify   read-only token; installs, checks, builds, tests and packs the tarball.
+#   publish  id-token: write; waits for approval in the "npm-publish" environment, then publishes only that tarball.
 on:
   release:
     types: [published]
 
-permissions:
-  contents: read
-  id-token: write
+# No permissions unless a job asks for them.
+permissions: {}
 
 env:
   # Tests create throwaway git repositories, so give git a neutral identity.
@@ -16,13 +19,16 @@ env:
   GIT_AUTHOR_EMAIL: ci@example.invalid
   GIT_COMMITTER_NAME: CI
   GIT_COMMITTER_EMAIL: ci@example.invalid
-
 jobs:
-  publish:
-    # Prereleases are never published to npm.
-    if: github.event.release.prerelease == false
+  verify:
+    # Prereleases are never published to npm; a fork never publishes.
+    if: github.event.release.prerelease == false && github.repository == 'voyageurworks/launch-guard'
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      already: ${{ steps.published.outputs.already }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -34,7 +40,7 @@ jobs:
       - name: The release tag must match package.json
         run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
       # The first version is published by hand (trusted publishing needs an existing package). A release for it must not
-      # fail: when npm already has this exact version, say so and skip every step below. A failed lookup counts as "not published".
+      # fail: when npm already has this exact version, say so and skip everything after it. A failed lookup counts as "not published".
       - name: Is this version already on npm?
         id: published
         run: |
@@ -42,10 +48,6 @@ jobs:
             echo "already=true" >> "$GITHUB_OUTPUT"
             echo "::notice::This version is already on npm (published by hand), so there is nothing to publish."
           fi
-      - name: npm must be new enough for trusted publishing (11.5.1 or later)
-        if: steps.published.outputs.already != 'true'
-        run: |
-          node -e "const v=process.argv[1].trim().split('.').map(Number),m=[11,5,1];let ok=true;for(let i=0;i<3;i++){if(v[i]!==m[i]){ok=v[i]>m[i];break}}if(!ok){console.error('npm '+process.argv[1].trim()+' is older than 11.5.1; npm trusted publishing needs 11.5.1 or later.');process.exit(1)}" "$(npm --version)"
       - name: Install pnpm
         if: steps.published.outputs.already != 'true'
         run: npm install --global pnpm@10
@@ -64,6 +66,40 @@ jobs:
       - name: Committed skill bundle is up to date
         if: steps.published.outputs.already != 'true'
         run: git diff --exit-code -- skill/launch-guard.mjs
-      - name: Publish to npm with provenance
+      - name: Pack the tarball that will be published
         if: steps.published.outputs.already != 'true'
-        run: npm publish --provenance --access public
+        run: npm pack --pack-destination "$RUNNER_TEMP/pack"
+      - name: Keep the tarball for the publish job
+        if: steps.published.outputs.already != 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: package
+          path: ${{ runner.temp }}/pack/*.tgz
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    needs: verify
+    if: needs.verify.outputs.already != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Required reviewer on this environment = nothing reaches npm without a human approving the run.
+    environment: npm-publish
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org
+      - name: npm must be new enough for trusted publishing (11.5.1 or later)
+        run: |
+          node -e "const v=process.argv[1].trim().split('.').map(Number),m=[11,5,1];let ok=true;for(let i=0;i<3;i++){if(v[i]!==m[i]){ok=v[i]>m[i];break}}if(!ok){console.error('npm '+process.argv[1].trim()+' is older than 11.5.1; npm trusted publishing needs 11.5.1 or later.');process.exit(1)}" "$(npm --version)"
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: package
+          path: ${{ runner.temp }}/pack
+      # No checkout and no install: only the tarball built and tested above runs through the OIDC identity.
+      - name: Publish to npm with provenance
+        run: npm publish "$RUNNER_TEMP"/pack/*.tgz --provenance --access public --ignore-scripts

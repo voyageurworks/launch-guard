@@ -1,31 +1,29 @@
 # Releasing
 
-Maintainer notes. **Nothing is published yet.** No npm package exists and no release has been made. A release happens only when the owner does the steps below; the files in this repository do not publish anything by themselves.
-
-Releases are meant to publish to npm as `@voyageurworks/launch-guard` from GitHub Actions (`.github/workflows/release.yml`), with provenance and no stored token.
+Maintainer notes. Releases publish to npm as `@voyageurworks/launch-guard` from GitHub Actions (`.github/workflows/release.yml`), with provenance and no stored token. The first version was published by hand; every later one goes through the workflow below.
 
 ## One-time setup (needs the maintainer's own npm account)
 
-1. Create an npm account and turn on two-factor authentication.
-2. Create the `voyageurworks` npm organization (free for public packages), or use a user named `voyageurworks`. The scope in `package.json` must match.
-3. Publish the first version by hand, because trusted publishing is configured on an existing package:
-   ```sh
-   npm login
-   npm publish --access public
-   ```
-4. On npmjs.com open the package, Settings, Trusted Publisher, and choose GitHub Actions: organization `voyageurworks`, repository `launch-guard`, workflow `release.yml`, and tick **Allow npm publish** under Allowed actions (the workflow runs `npm publish`; leaving it unticked would make npm stage each new version for manual approval instead). Leave the environment name empty. npm asks for your two-factor method (authenticator code or security key) when you save it. From then on no npm token is needed.
+1. Publish the first version by hand, because trusted publishing is configured on an existing package: `npm login`, then `npm publish --access public`.
+2. In the GitHub repository, Settings, Environments: create `npm-publish`, add yourself as **required reviewer**, and limit deployments to the tag pattern `v*`.
+3. On npmjs.com open the package, Settings, Trusted Publisher, GitHub Actions: organization `voyageurworks`, repository `launch-guard`, workflow `release.yml`, **Environment name `npm-publish`**, and tick **Allow npm publish** (the workflow runs `npm publish`; unticked, npm would stage every version for manual approval instead). npm asks for your two-factor method when you save it. With the environment name set, npm refuses any publish that did not pass the environment's approval, even from a modified workflow.
+4. Package Settings, Publishing access: **Require two-factor authentication and disallow bypass 2fa tokens**.
 
-The workflow runs on every published GitHub release that is not a prerelease (prereleases are skipped). If npm already has the exact version in `package.json` (the first version, published by hand), the workflow says so in a notice and skips every later step, so creating the GitHub release for that version does not fail. It does fail if a release is created for a new version before the one-time npm trusted-publishing setup above is finished. That failure is harmless: the package just is not published. Start trusted-publishing releases with the next version (0.1.1). Nothing is published until the owner does these steps. Before publishing, the workflow checks that the runner's npm is 11.5.1 or later (needed for trusted publishing) and stops with a clear message if it is not.
+## How a release is protected
 
-## Why no token is stored
+- `verify` job: read-only token. Installs with a frozen lockfile, checks, builds, tests and packs the tarball. It cannot reach npm.
+- `publish` job: the only job with `id-token: write`. It waits for your approval in the `npm-publish` environment, installs nothing, runs no repository code and publishes only the tarball `verify` built.
+- `release.yml` runs only for non-prerelease releases of `voyageurworks/launch-guard` itself; tags named `v*` cannot be moved or deleted (repository ruleset); only GitHub-owned actions, pinned by commit SHA, are allowed to run.
+- Treat any change to `.github/workflows/` as sensitive and read it before merging.
 
-The release workflow asks GitHub for a short-lived identity token (`id-token: write`) and npm accepts it for this repository and workflow only (trusted publishing). There is no long-lived npm token in the repository settings to leak or rotate, and the published package carries a provenance statement linking it to the commit and workflow that built it.
+If npm already has the tagged version (the hand-published first one), the workflow notes that and skips both the build steps and the publish.
 
 ## Each release
 
-1. Update `version` in `package.json`, put the release date on the matching heading in `CHANGELOG.md` (the first release reads `0.1.0 - unreleased` until then), run `pnpm build` so the committed bundle `skill/launch-guard.mjs` is current, commit, and wait for CI to pass on `main`.
-2. Create a GitHub release whose tag is `v` plus the version (for example `v0.1.0`). The `Release` workflow checks that the tag matches `package.json`, runs the checks, build and tests, checks that the committed bundle is current, and publishes.
+1. Update `version` in `package.json` and the date in `CHANGELOG.md`; run `pnpm build` so the committed bundle `skill/launch-guard.mjs` is current (the release checks it), commit, and wait for CI to pass on `main`.
+2. Create a GitHub release whose tag is `v` plus the version (for example `v1.0.1`).
+3. Open the `Release` run in the Actions tab, check that it is the version you meant, and approve the `npm-publish` deployment.
 
 ## Check before publishing
 
-`npm pack --dry-run` lists exactly what goes into the package. `npm publish --dry-run` runs the whole publish except the upload.
+`npm pack --dry-run` lists exactly what goes into the package.
