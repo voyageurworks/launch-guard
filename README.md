@@ -4,7 +4,7 @@ A check to run before you make a private git repository public. It looks for the
 
 By Voyageur Works. MIT licence. Home of the project: `https://github.com/voyageurworks/launch-guard`.
 
-**Status:** version 0.x, the repository is public, but the package is not published to npm yet. Today you install it by copying the `skill/` folder (see Install below).
+**Status:** version 0.x, the repository is public and the package is on npm as `@voyageurworks/launch-guard`. You can run it with `npx @voyageurworks/launch-guard <path-to-repo>`, or install it as an assistant skill by copying the `skill/` folder (see Install below).
 
 ## Why
 

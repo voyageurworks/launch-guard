@@ -2,7 +2,7 @@
 
 ## 0.1.0 - 2026-11-01
 
-First version. Not yet published to npm; today it is used by copying the `skill/` folder.
+First version. Published to npm as `@voyageurworks/launch-guard` (published by hand, so this first version has no provenance badge); it can also be used by copying the `skill/` folder.
 
 - Scans a private git repository before it goes public and reports where problems are, never what they are: file and line, the kind of problem, and which entry of your private list matched. It does not print a secret, any part of one, a value from your list, an author, a commit message or a branch name.
 - Four checks: secrets in files (known key formats and private key blocks), personal details and restricted terms from your own private list (in file contents, file names, and the whole git history including commit messages, authors and reflog), old commits that may still be reachable after a history rewrite, and repository basics (licence, security policy, CI, and similar).
