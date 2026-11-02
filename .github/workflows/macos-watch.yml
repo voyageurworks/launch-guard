@@ -1,13 +1,13 @@
 name: macOS runner watch
 
 # Since 2026-11-02 GitHub has not given this organization any macOS runner, so the macOS jobs in CI never start
-# (docs: see the repository owner's macos-runner-investigation notes). This workflow checks once an hour whether
+# (docs: see the repository owner's macos-runner-investigation notes). This workflow checks every six hours whether
 # one job can get a macOS runner. If it can, it re-runs main's CI, so the macOS checks are retried without anyone
-# running anything by hand. It is cheap: one tiny job per hour, one at a time.
+# running anything by hand. It is cheap: one tiny job every six hours, one at a time.
 # Delete this file once macOS jobs in CI run normally again.
 on:
   schedule:
-    - cron: "17 * * * *"
+    - cron: "17 */6 * * *"
   workflow_dispatch:
 
 # No permissions unless a job asks for them.
