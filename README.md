@@ -1,5 +1,9 @@
 # launch-guard
 
+[![npm](https://img.shields.io/npm/v/@voyageurworks/launch-guard.svg)](https://www.npmjs.com/package/@voyageurworks/launch-guard)
+[![CI](https://github.com/voyageurworks/launch-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/voyageurworks/launch-guard/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 A check to run before you make a private git repository public. It looks for the things you would regret leaving in a public repo and tells you where they are, without ever printing them.
 
 By Voyageur Works. MIT licence. Home of the project: `https://github.com/voyageurworks/launch-guard`.
