@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.3 - 2026-11-02
+
+No change to the scanner. The README now starts with the one command (`npx -y @voyageurworks/launch-guard <repo>`), a real example of its output on a repository with a fake key, a 30-second demo you can run, and an honest comparison with gitleaks and TruffleHog (sourced from their READMEs). The skill install steps moved below it.
+
 ## 0.1.2 - 2026-11-02
 
 Version 0.1.1 was tagged but never published to npm (its release job failed before the publish step), so 0.1.2 is the first version published from GitHub Actions.

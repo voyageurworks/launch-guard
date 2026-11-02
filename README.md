@@ -4,11 +4,46 @@
 [![CI](https://github.com/voyageurworks/launch-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/voyageurworks/launch-guard/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-A check to run before you make a private git repository public. It looks for the things you would regret leaving in a public repo and tells you where they are, without ever printing them.
+**Check a private git repository before you make it public, and never print what it finds.**
 
-By Voyageur Works. MIT licence. Home of the project: `https://github.com/voyageurworks/launch-guard`.
+```sh
+npx -y @voyageurworks/launch-guard path/to/your/repo
+```
 
-**Status:** version 0.x, the repository is public and the package is on npm as `@voyageurworks/launch-guard`. You can run it with `npx @voyageurworks/launch-guard <path-to-repo>`, or install it as an assistant skill by copying the `skill/` folder (see Install below).
+You need Node 22 or newer and nothing else. It never edits the repository, and the only network step (a read-only `git ls-remote`) can be switched off with `--offline`. The exit code is `0` when nothing blocks publishing, `1` when something does.
+
+## What it looks like
+
+Real output on a throwaway repository whose `app.js` holds a fake AWS-style key:
+
+```text
+BLOCK (2)
+  app.js:1 secret format
+  4e4cc92:app.js:1 secret in history
+
+WARN (4)
+  list private list has no entries
+  LICENSE missing LICENSE
+  SECURITY missing SECURITY
+  CI missing CI
+
+INFO (1)
+  remote no remote
+RESULT: FAIL
+```
+
+It says which file and line, what kind of problem, and that an old commit holds the same thing (deleting the line is not enough once a repository is public). It does not print the key, any part of it, or the commit message.
+
+Try the same thing in 30 seconds, with no real secret (bash, macOS, Linux or Git Bash; your commit id will differ):
+
+```sh
+mkdir launch-guard-demo && cd launch-guard-demo && git init -q
+printf "const k = 'AKIA%s';\n" ABCDEFGHIJKLMNOP > app.js
+git add . && git -c user.name=demo -c user.email=demo commit -qm demo
+npx -y @voyageurworks/launch-guard . --offline
+```
+
+By [Voyageur Works](https://github.com/voyageurworks). MIT licence.
 
 ## Why
 
@@ -16,23 +51,30 @@ More and more repositories are written with an AI assistant, and the assistant i
 
 launch-guard is built so that cannot happen. It only reports **where** something is (file and line), **what kind** of problem it is, and which entry of your private list matched. It does not print the secret, any part of it, a value from your list, an author name or a commit message. It never changes your files, rewrites history or pushes. The only network use is a read-only `git ls-remote` against your configured remotes (skip it with `--offline`), and the only file it writes is the template from `--init-list`.
 
-## Install
+## Next to gitleaks and TruffleHog
 
-You need Node 22 or newer, and either Claude Code or Codex.
+launch-guard does not replace a general secret scanner; run those too. They are built for other jobs. Everything in the right-hand column comes from their own READMEs (checked 2026-11-02).
 
-1. Get this project from `https://github.com/voyageurworks/launch-guard` and find the `skill/` folder.
-2. Copy that whole `skill/` folder into your assistant's skills directory and name the copy `launch-guard`. The same skill folder works in both; where each tool looks for skills differs, so check your tool's documentation for the right directory.
-3. Ask your assistant something like "check this repo before I make it public", or run it yourself (next section).
+| | launch-guard | [gitleaks](https://github.com/gitleaks/gitleaks), [TruffleHog](https://github.com/trufflesecurity/trufflehog) |
+| --- | --- | --- |
+| Main question | "Is this repository safe to make public?" | "Where are the secrets in this code, history or data source?" |
+| What a finding shows | File and line, kind of problem, which list entry matched. Never the value, an author or a commit message. | gitleaks' documented `git -v` output shows the matched secret, the author, the email and the commit. |
+| Your own private words (names, address, school, codewords) | Checked from a private list that stays outside the repository | Not their purpose (gitleaks can be given custom rules) |
+| Where it looks | One git repository: files, history, tags, reflog, leftover refs | gitleaks: git repositories, directories and stdin. TruffleHog also scans chats, wikis, object stores and more |
+| Secret formats | A focused set of known formats plus assignments next to words like key or token | TruffleHog classifies 800+ secret types and can check whether a credential is still live |
+| Built to be run by an AI assistant | Yes: the output is safe to appear in a chat | Not what they are designed around |
 
-There is nothing else to install: the script in the folder has no dependencies.
+Use gitleaks or TruffleHog for continuous scanning and to check live credentials. Use launch-guard as the last check before you press "make public", and whenever an AI assistant is the one running it.
+
+## Use it as a Claude Code or Codex skill
 
 ## First run, no setup
 
 ```
-node skill/launch-guard.mjs <repo>
+npx -y @voyageurworks/launch-guard <repo>
 ```
 
-Replace `<repo>` with the path of the repository (leave it out to scan the current folder). Add `--offline` to skip the one network step (see "Network and files" below). Point it at the top folder of a repository: for a plain folder or a subfolder of a repository it skips the history and old-commit checks and says so. With no private list yet, it still checks for secrets, old commits that stay reachable, and the basics, and says plainly that the personal and restricted checks were skipped.
+(From a clone, `node skill/launch-guard.mjs <repo>` does the same.) Replace `<repo>` with the path of the repository (leave it out to scan the current folder). Add `--offline` to skip the one network step (see "Network and files" below). Point it at the top folder of a repository: for a plain folder or a subfolder of a repository it skips the history and old-commit checks and says so. With no private list yet, it still checks for secrets, old commits that stay reachable, and the basics, and says plainly that the personal and restricted checks were skipped.
 
 ## In scripts, before a push, and in CI
 
