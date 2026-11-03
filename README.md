@@ -2,14 +2,14 @@
 
 # launch-guard
 
-[![npm](https://img.shields.io/npm/v/@voyageurworks/launch-guard.svg)](https://www.npmjs.com/package/@voyageurworks/launch-guard)
+[![npm](https://img.shields.io/npm/v/@voyageurworks/launch-guard-pack.svg)](https://www.npmjs.com/package/@voyageurworks/launch-guard-pack)
 [![CI](https://github.com/voyageurworks/launch-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/voyageurworks/launch-guard/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Check a private git repository before you make it public, and never print what it finds.**
 
 ```sh
-npx -y @voyageurworks/launch-guard path/to/your/repo
+npx -y @voyageurworks/launch-guard-pack path/to/your/repo
 ```
 
 You need Node 22 or newer and nothing else. It never edits the repository, and the only network step (a read-only `git ls-remote`) can be switched off with `--offline`. The exit code is `0` when nothing blocks publishing, `1` when something does.
@@ -42,7 +42,7 @@ Try the same thing in 30 seconds, with no real secret (bash, macOS, Linux or Git
 mkdir launch-guard-demo && cd launch-guard-demo && git init -q
 printf "const k = 'AKIA%s';\n" ABCDEFGHIJKLMNOP > app.js
 git add . && git -c user.name=demo -c user.email=demo commit -qm demo
-npx -y @voyageurworks/launch-guard . --offline
+npx -y @voyageurworks/launch-guard-pack . --offline
 ```
 
 By [Voyageur Works](https://github.com/voyageurworks). MIT licence.
@@ -73,7 +73,7 @@ Use gitleaks or TruffleHog for continuous scanning and to check live credentials
 ## First run, no setup
 
 ```
-npx -y @voyageurworks/launch-guard <repo>
+npx -y @voyageurworks/launch-guard-pack <repo>
 ```
 
 (From a clone, `node skill/launch-guard.mjs <repo>` does the same.) Replace `<repo>` with the path of the repository (leave it out to scan the current folder). Add `--offline` to skip the one network step (see "Network and files" below). Point it at the top folder of a repository: for a plain folder or a subfolder of a repository it skips the history and old-commit checks and says so. With no private list yet, it still checks for secrets, old commits that stay reachable, and the basics, and says plainly that the personal and restricted checks were skipped.
@@ -82,7 +82,63 @@ npx -y @voyageurworks/launch-guard <repo>
 
 - `--json` prints the same report as one JSON document (`version`, `result`, `counts`, `findings`), with the same six fixed fields per finding and the same promise: no secret, no list value, no commit message. The exit code is the same, so `node skill/launch-guard.mjs . --json --offline > report.json` works in any script.
 - `--print-hook` prints a git `pre-push` hook to the screen. It writes nothing; you save it yourself as `.git/hooks/pre-push` (the tool never edits a repository) and put the path of `launch-guard.mjs` into it. Any blocking finding then stops the push.
+- `--fail-on warn` makes warnings fail the run too (exit code 1, `RESULT: FAIL`, `"result": "fail"` in `--json`). The default is `--fail-on block`. Expect a few warnings on most repositories (a missing SECURITY file, an extra ref), so use it where you want a strict gate.
+- `--explain <label>` prints what a report label means and what to do about it, for example `--explain "secret format"`. The text is the same as the table in "Reading the report" (a test fails if the two differ). An unknown label lists the known ones.
+- `--pack` scans the package `npm publish` would upload instead of the repository (see the section below). Run it as the step before `npm publish`.
 - [docs/ci.md](docs/ci.md) has a ready GitHub Actions job. A runner has no private list, so CI covers secrets, history, old commits and basics; the personal and restricted checks stay on your own machine.
+
+## Check what `npm publish` would ship: `--pack`
+
+A clean repository can still publish a leaky package, because what `npm publish` uploads is decided by `files`, `.npmignore` and `.gitignore`, not by what you committed. Assistant settings, `.env` files and source maps are easy to include by accident. `--pack` checks the package, not the repository:
+
+```
+npx -y @voyageurworks/launch-guard-pack . --pack --offline
+```
+
+It runs `npm pack --ignore-scripts` into a fresh temporary folder (if your `package.json` defines `prepack`, `prepare`, `postpack`, `prepublish`, `prepublishOnly`, `publish` or `postpublish`, it packs a copy of the project with those scripts removed instead, because npm 10, the npm that ships with Node 22, still runs `prepare` during `npm pack --ignore-scripts`; your own files are never changed), unpacks the tarball there with a small built-in reader (no links are created, no name may leave the folder, and the size and file count are capped), runs the secret scanner and your private list on **every file that would ship** (including `dist/` and bundled `node_modules/`), applies the package rules below, and deletes both temporary folders. Nothing is published, no lifecycle script runs, nothing is sent anywhere. The report is the same shape as before (text or `--json`, same exit codes) and the same promise holds: where and what kind, never the matched text. Paths are shown as they are inside the package.
+
+A real run on a throwaway package (the key is fake) that has a `.claude` folder, a built file with a key and a source map:
+
+```
+BLOCK (2)
+  dist/index.js:1 secret format
+  .claude/settings.local.json agent folder in package
+
+WARN (2)
+  dist/index.js.map source map with sources
+  package.json no files list in package
+
+INFO (4)
+  list checks skipped: no private list
+  npm pack packed without running scripts
+  history history not part of a package
+  5 files, 230 B unpacked package contents
+RESULT: FAIL
+```
+
+| Package rule | Level |
+| --- | --- |
+| A file under `.claude/`, `.codex/`, `.cursor/`, `.gemini/` or `.windsurf/`, or any `settings.local.json` | block |
+| A session or transcript file (`*session*`, `*transcript*` with `.md`, `.json` or `.jsonl`) | block |
+| An `.env*` file (not `.env.example`, `.env.sample`, `.env.template`), an `.npmrc`, anything under `.git/` | block |
+| A private SSH key by name (`id_rsa`, `id_ed25519` and so on, not `.pub`), a `.p12`/`.pfx` file, or a `.pem`/`.key` file that holds a private key block | block |
+| A `.pem`/`.key` file with no private key block | warn |
+| A source map whose `sourcesContent` holds source text, or a `.map` file that is not valid JSON | warn |
+| `CLAUDE.md`, `AGENTS.md`, `GEMINI.md`, `.cursorrules` or a `memory/` folder | warn |
+| `package.json` has no `files` list and the folder has no `.npmignore`, so npm used its default rules | warn |
+| An `install`, `preinstall` or `postinstall` script (it runs on the machine of everyone who installs the package) | warn |
+| Symbolic links, hard links, and names that could climb out of the folder | info / warn |
+
+Session files and instruction files inside a bundled `node_modules/` are not flagged (they belong to someone else's package); everything else, including secrets, applies there too. The test-folder rule from "Reading the report" still applies to what ships: a secret under a shipped `test/` or `fixtures/` folder only warns, so look at warnings there.
+
+What it does not do:
+
+- **npm only.** It calls `npm pack`. pnpm and yarn workspaces are not treated specially, and a monorepo needs the path of each package.
+- **Scripts do not run.** If the files you publish are made by a `prepack` or `build` step, run that step first, or `dist/` will be missing and the report will not describe what you really ship. When scripts are removed from the packed copy, a `.git` folder, any `node_modules` folder (the top-level one is linked back so bundled dependencies still ship) and symbolic links are left out of that copy, which npm would leave out of the package as well.
+- **No comparison with the version on npm**, no network, and no check of what is already published.
+- **It checks names and structure plus the same line scanners.** A secret with no key word beside it is still invisible; files over 1 MiB are not read by the secret scanner (a "file skipped" note says so), though source maps are parsed up to 64 MiB.
+
+Next to the tools built for packages: [publint](https://github.com/publint/publint) describes itself as "Lint packaging errors. Ensure compatibility across environments." and [secretlint](https://github.com/secretlint/secretlint) as "a Pluggable linting tool to prevent committing credentials" (both from their own READMEs, checked 2026-11-03). Neither is a replacement for this and this is not a replacement for either. `--pack` is one more check inside launch-guard, and what it adds is the same promise as the rest of the tool: output that is safe to show an AI assistant, rules for assistant folders, and your private list applied to the package.
 
 ## Your private list
 
@@ -105,7 +161,7 @@ restricted|zq-example-codeword
 
 ## The four checks
 
-1. **Secrets.** Known key formats and long random-looking strings next to words like key, token or password, in your current files. It follows a value that sits on a later line than its key (a YAML block, a continuation, or a string split with `+` or a backslash, over up to four lines), reads quoted values that contain symbols, and knows the formats of common providers (cloud, payment, chat and developer tokens) as well as `Authorization: Bearer` headers.
+1. **Secrets.** Known key formats and long random-looking strings next to words like key, token or password, in your current files. It follows a value that sits on a later line than its key (a YAML block, a continuation, or a string split with `+` or a backslash, over up to four lines), reads quoted values that contain symbols, and knows the formats of common providers (cloud, payment, chat and developer tokens) as well as `Authorization: Bearer` headers. It also reads credential lines that carry no key word: `.npmrc` `_authToken`, `_auth` and `_password` values (an `${NPM_TOKEN}` reference is fine), a Docker `config.json` `"auth"` that decodes to `user:password`, and a `Password=` inside a connection string next to `Server=`, `Host=` or `Database=`.
 2. **Personal details and restricted terms.** Everything in your private list, matched against file contents and against file and folder names.
 3. **History.** Every branch, tag and the reflog, checked for the same secrets and list entries in old versions of files, in commit messages, in annotated tag messages and taggers, in author names and emails, and in what a merge commit changed beyond an automatic merge (such as a secret typed in while resolving a conflict). The merge check needs git 2.36 or newer; on an older git it says "history incomplete".
 4. **Old commits still reachable.** Leftover rewrite refs, extra refs and hidden pull-request refs on your remotes that would still be downloadable after a history rewrite, plus local unreachable objects (a prompt to check, not proof of a leak).
@@ -139,6 +195,14 @@ Each line looks like `path:line label (list entry N)`, grouped by level. The las
 | nested repository not scanned | An untracked folder inside the repository is itself a git repository. Its files and history are not part of this scan, and a plain `git add` would not publish them | Scan it on its own, or keep it out of the folder you publish |
 | submodule not scanned | The repository has submodules (another repository each). Their files and history are not part of this scan | Run the tool inside each submodule before you publish |
 | remote not checked | The hidden pull-request ref check did not run: `--offline` was given, or git could not reach the remote without a prompt. The tool never asks for a password, so a private HTTPS remote that needs credentials will often land here | Run the tool from a shell where git already has credentials for that remote (without `--offline`). If the repository was ever pushed with sensitive content, treat it as needing a fresh repository |
+| agent folder in package, agent file in package | `--pack`: the tarball would contain an assistant folder, a `settings.local.json`, a session file or an instruction file | Keep it out with a `files` list in `package.json` or an `.npmignore`, then pack again |
+| env file in package, .npmrc in package, git data in package | `--pack`: the tarball would contain an `.env*` file, an `.npmrc` or a `.git` folder (contents are never read) | Exclude it as above; treat anything secret in it as exposed |
+| private key file in package, key or certificate file in package | `--pack`: a key bundle or a `.pem`/`.key` file would ship | Remove a private key and replace it; check that a certificate is meant to be public |
+| source map with sources, source map in package | `--pack`: a `.map` file would ship with your source text inside, or is not valid JSON | Turn off `sourcesContent` or do not publish maps |
+| no files list in package | `--pack`: `package.json` has no `files` list and the source folder has no `.npmignore` | Add a `files` list so only what you name ships |
+| install script in package | `--pack`: an `install`, `preinstall` or `postinstall` script runs on every consumer's machine | Check that you mean it |
+| link in package, unsafe path in package | `--pack`: the tarball held a link (not created) or a name that could leave the folder (not written) | Look at how the package is built |
+| packed without running scripts, history not part of a package, package contents | `--pack` notes: scripts did not run, git history is not in a package, and how many files and bytes would ship | Informational |
 | checks skipped: no private list, private list has no entries | The personal and restricted checks had nothing to use | Create and fill in your list |
 
 For a harmless match (a test file, a documented example) put `launch-guard-allow: <reason>` in a comment on that line or the line above, with a real reason. Only secret findings and the user-profile-path finding are lowered from block to warn, and only in test files (`*.test.*`, `*.spec.*`, `*_test.*`, `test_*`) and under `test`, `tests`, `spec`, `specs`, `fixtures`, `__tests__`, `__fixtures__`, `__mocks__`, `testdata` and `docs/examples` folders. Findings from your private list (personal, restricted, matching paths, history) always stay block there: those are things you said must not be public, so use `launch-guard-allow: <reason>` for a real exception. Files with a key or credential extension (`pem key p12 pfx env crt cer jks keystore asc gpg ppk kdbx`) and names starting `.env` are never lowered, whatever their folder or name.
@@ -187,6 +251,7 @@ Codex has its own permission and sandbox settings, and they should be set so tha
 - **A scanner that matches patterns cannot see everything.** A secret with no key word beside it and no known provider format (for example a bare random string in a variable named `x`), one split over more than four lines or inside a Python parenthesised string, a triple-quoted block, a heredoc or a template literal, one that is encoded or encrypted, or one inside a binary or very large file is not found. `PASS` means these rules found nothing, not that nothing is there. Rotate any key that was ever committed.
 - **GitHub's own caches cannot be seen.** If the repository was ever pushed with something sensitive, copies may live in places this tool cannot check (forks, pull-request refs, cached views). The safe answer is a fresh repository with no history, and the tool says so rather than claiming a rewrite is enough.
 - **Amending, rebasing, staging and stashing leave old objects behind.** They are no longer on any branch but stay in the repository until git cleans up (first `git reflog expire --expire-unreachable=now --all`, then `git gc --prune=now`; the reflog keeps amended and rebased commits alive). They are local and a push does not publish them, so they only warn.
+- **`--pack` inspects what `npm pack --ignore-scripts` produces**, not what a build would produce, and it needs npm on your PATH (exit code 2 and one fixed message if the package cannot be built or read). See the `--pack` section for the rest.
 - **Example env files are read.** `.env.example`, `.env.sample` and `.env.template` are scanned for secrets like any other file; other `.env` files are flagged by name and never opened.
 - **It is not a replacement for a general secret scanner**, and it gives no legal or licence advice.
 

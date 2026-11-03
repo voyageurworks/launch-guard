@@ -1,6 +1,6 @@
 export type Severity = "block" | "warn" | "info";
 
-export type Category = "secret" | "personal" | "restricted" | "history" | "reachability" | "basics";
+export type Category = "secret" | "personal" | "restricted" | "history" | "reachability" | "basics" | "package";
 
 /** Fixed text written by the tool. Never matched text or text from a file. Later tasks add members. */
 export type Label =
@@ -31,7 +31,23 @@ export type Label =
   | "file skipped"
   | "more files skipped"
   | "submodule not scanned"
-  | "nested repository not scanned";
+  | "nested repository not scanned"
+  | "agent folder in package"
+  | "agent file in package"
+  | "env file in package"
+  | ".npmrc in package"
+  | "git data in package"
+  | "private key file in package"
+  | "key or certificate file in package"
+  | "source map with sources"
+  | "source map in package"
+  | "no files list in package"
+  | "install script in package"
+  | "unsafe path in package"
+  | "link in package"
+  | "packed without running scripts"
+  | "package contents"
+  | "history not part of a package";
 
 /** `entry` is the private-list line number. No field may hold matched text. */
 export interface Finding {

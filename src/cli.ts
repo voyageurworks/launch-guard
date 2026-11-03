@@ -6,7 +6,12 @@ import type { DenyEntry } from "./denylist.js";
 import { GIT_QUICK_TIMEOUT_MS } from "./gitTimeouts.js";
 import { isEnvFile, listRepoFiles } from "./files.js";
 import type { RepoFile } from "./files.js";
+import { EXPLAIN, explainLabel } from "./explain.js";
+import { runNpmPack } from "./pack/build.js";
+import { scanPackage } from "./pack/run.js";
 import { renderJson, renderReport, exitCode } from "./report.js";
+import type { FailOn } from "./report.js";
+import { skippedNotes } from "./skipped.js";
 import { scanBasics } from "./scan/basics.js";
 import { scanHistory } from "./scan/history.js";
 import { checkReachability } from "./scan/reachability.js";
@@ -30,6 +35,8 @@ export interface Scanners {
   basics(root: string, entries: DenyEntry[], files?: RepoFile[]): Finding[];
   /** True when `root` is the top level of a git working tree. Optional: a scanner set without it counts as a root. */
   isRepoRoot?(root: string): boolean;
+  /** Builds the tarball `--pack` inspects: `npm pack` for the project in `cwd`, written into `destDir`. Null on any failure. Optional: the real one is the default. */
+  pack?(cwd: string, destDir: string): string | null;
 }
 
 const REAL: Scanners = {
@@ -40,12 +47,11 @@ const REAL: Scanners = {
   reachability: (root, offline) => checkReachability(root, { offline }),
   basics: scanBasics,
   isRepoRoot,
+  pack: runNpmPack,
 };
 
-const MAX_SKIPPED_NOTES = 25;
-
 const USAGE = [
-  "Usage: launch-guard [path] [--list <file>] [--offline] [--json] [--init-list [file]] [--print-hook] [--help]",
+  "Usage: launch-guard [path] [--list <file>] [--offline] [--json] [--pack] [--fail-on <block|warn>] [--init-list [file]] [--print-hook] [--explain <label>] [--help]",
   "",
   "Scans a git repository before it goes public and reports secrets, personal",
   "details, restricted terms and reachable old commits. It does not print a secret,",
@@ -60,18 +66,29 @@ const USAGE = [
   "                (default: ~/.config/launch-guard/private-list.txt)",
   "  --offline     do not contact any remote (skips the hidden pull-request ref check)",
   "  --json        print the report as JSON (same fields, still no private data) instead of text",
+  "  --fail-on <block|warn>",
+  "                the lowest level that fails the run (default block); warn also fails on warnings",
+  "  --pack        scan what `npm pack` would ship instead of the repository: it builds the tarball in a temp folder",
+  "                (it does not run lifecycle scripts and never publishes), scans its contents, then deletes it;",
+  "                git history is not part of a package, so the history and remote checks are skipped",
   "  --init-list [file]",
   "                write a template private list (comment lines only) for you to fill in with",
   "                your own editor; refuses to overwrite a file or to write inside a git repo",
   "  --print-hook  print a git pre-push hook script to the screen; it writes nothing, you save it yourself",
+  "  --explain <label>",
+  "                print what a report label means and what to do about it (the label is the text in a finding,",
+  "                for example \"secret format\"); an unknown label lists the known ones",
   "  --help        show this text",
   "",
   "Exit codes: 0 no blocking findings, 1 at least one blocking finding, 2 usage or setup problem.",
   "",
 ].join("\n");
 
-const HINT = "Usage: launch-guard [path] [--list <file>] [--offline] [--json] [--init-list [file]] [--print-hook] [--help]\n";
+const HINT = "Usage: launch-guard [path] [--list <file>] [--offline] [--json] [--pack] [--fail-on <block|warn>] [--init-list [file]] [--print-hook] [--explain <label>] [--help]\n";
+const FAIL_LABEL = `launch-guard: unknown label. Known labels:\n${Object.keys(EXPLAIN).map((l) => `  ${l}`).join("\n")}\n`;
 const FAIL_PATH = "launch-guard: the target path is not a readable directory.\n";
+const FAIL_PACK_BUILD = "launch-guard: the package could not be built.\n";
+const FAIL_PACK_READ = "launch-guard: the package could not be read.\n";
 const FAIL_LIST = "launch-guard: the private list is missing, unreadable or invalid.\n";
 const FAIL_ARGS = `launch-guard: unrecognised or incomplete arguments.\n${HINT}`;
 const FAIL_RUN = "launch-guard: the scan could not be completed.\n";
@@ -106,7 +123,7 @@ const HOOK = [
 type Parsed =
   | { help: true }
   | { help: false; hook: true }
-  | { help: false; hook: false; init: string | null | undefined; path: string; list: string | null; offline: boolean; json: boolean }
+  | { help: false; hook: false; init: string | null | undefined; path: string; list: string | null; offline: boolean; json: boolean; pack: boolean; failOn: FailOn; explain: string | null }
   | null;
 
 function parseArgs(argv: string[]): Parsed {
@@ -116,6 +133,9 @@ function parseArgs(argv: string[]): Parsed {
   let offline = false;
   let json = false;
   let hook = false;
+  let pack = false;
+  let failOn: FailOn | null = null;
+  let explain: string | null = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a === "--help" || a === "-h") return { help: true };
@@ -127,6 +147,23 @@ function parseArgs(argv: string[]): Parsed {
     if (a === "--json") {
       if (json) return null;
       json = true;
+      continue;
+    }
+    if (a === "--explain") {
+      const v = argv[++i];
+      if (explain !== null || v === undefined || v === "") return null;
+      explain = v;
+      continue;
+    }
+    if (a === "--fail-on") {
+      const v = argv[++i];
+      if (failOn !== null || (v !== "block" && v !== "warn")) return null;
+      failOn = v;
+      continue;
+    }
+    if (a === "--pack") {
+      if (pack) return null;
+      pack = true;
       continue;
     }
     if (a === "--print-hook") {
@@ -157,10 +194,14 @@ function parseArgs(argv: string[]): Parsed {
   }
   if (hook) {
     // Printing the hook is a mode of its own, like --init-list: nothing else may be combined with it.
-    return init !== undefined || path !== null || list !== null || offline || json ? null : { help: false, hook: true };
+    return init !== undefined || path !== null || list !== null || offline || json || pack || failOn !== null || explain !== null
+      ? null
+      : { help: false, hook: true };
   }
-  if (init !== undefined && (path !== null || list !== null || offline || json)) return null;
-  return { help: false, hook: false, init, path: path ?? ".", list, offline, json };
+  if (init !== undefined && (path !== null || list !== null || offline || json || pack || failOn !== null || explain !== null)) return null;
+  // Explaining a label is a mode of its own: nothing else may be combined with it.
+  if (explain !== null && (path !== null || list !== null || offline || json || pack || failOn !== null)) return null;
+  return { help: false, hook: false, init, path: path ?? ".", list, offline, json, pack, failOn: failOn ?? "block", explain };
 }
 
 /** True when `p` or any parent directory holds a `.git` entry. */
@@ -271,6 +312,15 @@ async function run(argv: string[], io: Io, scanners: Scanners): Promise<0 | 1 | 
     io.out(HOOK);
     return 0;
   }
+  if (args.explain !== null) {
+    const text = explainLabel(args.explain);
+    if (text === null) {
+      io.err(FAIL_LABEL);
+      return 2;
+    }
+    io.out(`${text}\n`);
+    return 0;
+  }
   if (args.init !== undefined) return initList(args.init ?? defaultDenyListPath(), io);
   const root = resolve(args.path);
   if (!isReadableDir(root)) {
@@ -296,35 +346,37 @@ async function run(argv: string[], io: Io, scanners: Scanners): Promise<0 | 1 | 
     findings.push(note("info", "checks skipped: no private list"));
   }
 
-  const files = scanners.listFiles(root);
-  findings.push(...scanners.secrets(root, entries, files));
-  if (entries.length > 0) findings.push(...scanners.terms(root, entries, listFile, files));
-  const isRoot = scanners.isRepoRoot?.(root) ?? true;
-  if (isRoot) {
-    findings.push(...scanners.history(root, entries));
-    findings.push(...scanners.reachability(root, args.offline));
-  } else {
-    // History and reachability would run against a parent repository (or none), so they are skipped and the gap is shown.
-    findings.push(note("warn", "not a repository root", "repository"));
-  }
-  findings.push(...scanners.basics(root, entries, files));
-
-  const skipped = files.filter((f) => f.skipped !== undefined);
-  for (const f of skipped.slice(0, MAX_SKIPPED_NOTES)) {
-    findings.push({
-      category: "basics",
-      severity: "info",
-      file: displayPath(f.path, entries),
-      line: null,
-      label: "file skipped",
-      entry: null,
+  if (args.pack) {
+    // The tarball has no history and no remotes, so only the content scanners run, against what would ship.
+    const outcome = scanPackage(root, entries, {
+      pack: scanners.pack ?? runNpmPack,
+      secrets: scanners.secrets,
+      terms: scanners.terms,
     });
+    if (!outcome.ok) {
+      io.err(outcome.reason === "build" ? FAIL_PACK_BUILD : FAIL_PACK_READ);
+      return 2;
+    }
+    findings.push(...outcome.findings);
+  } else {
+    const files = scanners.listFiles(root);
+    findings.push(...scanners.secrets(root, entries, files));
+    if (entries.length > 0) findings.push(...scanners.terms(root, entries, listFile, files));
+    const isRoot = scanners.isRepoRoot?.(root) ?? true;
+    if (isRoot) {
+      findings.push(...scanners.history(root, entries));
+      findings.push(...scanners.reachability(root, args.offline));
+    } else {
+      // History and reachability would run against a parent repository (or none), so they are skipped and the gap is shown.
+      findings.push(note("warn", "not a repository root", "repository"));
+    }
+    findings.push(...scanners.basics(root, entries, files));
+    findings.push(...skippedNotes(files, entries));
   }
-  if (skipped.length > MAX_SKIPPED_NOTES) findings.push(note("info", "more files skipped", "files"));
 
-  const code = exitCode(findings);
+  const code = exitCode(findings, args.failOn);
   if (args.json) {
-    io.out(renderJson(findings));
+    io.out(renderJson(findings, args.failOn));
     return code;
   }
   io.out(renderReport(findings));

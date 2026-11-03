@@ -58,6 +58,28 @@ The report holds file names and line numbers of the scanned repository. Treat it
 
 This project runs the same job on itself (see `.github/workflows/ci.yml`, job `self-scan`).
 
+## Checking the package before `npm publish`
+
+`--pack` scans what `npm pack` would upload (see the README). In a release job, run it after the build step and before the publish step, so a leaky package stops the release. It needs npm on the runner (the `setup-node` step provides it) and no full history:
+
+```yaml
+  pack-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      # Build first if the published files are generated: --pack never runs your scripts.
+      - run: npm ci --ignore-scripts && npm run build
+      - run: npx -y @voyageurworks/launch-guard-pack . --pack --offline
+```
+
+The step fails (exit 1) only on a blocking finding, and exits 2 with one fixed message if the package cannot be built or read. Add `--json` to keep the report. As with the other runs, a runner has no private list, so only the secret scanner and the package rules apply there; run it on your own machine to apply your list to the package too.
+
 ## A git pre-push hook
 
 ```sh

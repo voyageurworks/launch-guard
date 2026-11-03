@@ -54,7 +54,8 @@ function gitPaths(root: string): string[] | null {
  * In a git repo the list comes from `git ls-files` (tracked and untracked-not-ignored files); otherwise the
  * folder is walked. Files for which `neverOpen(path)` is true are listed without being opened (no binary sniff).
  */
-export function listRepoFiles(root: string, neverOpen?: (path: string) => boolean): RepoFile[] {
+export function listRepoFiles(root: string, neverOpen?: (path: string) => boolean, options: { includeAll?: boolean } = {}): RepoFile[] {
+  // includeAll is for an unpacked package: ignore git, and walk .git, node_modules and dist too, since they are what ships.
   /** Classifies one path; undefined means leave it out (a directory or a file that vanished). */
   const classify = (path: string): RepoFile | undefined => {
     const full = join(root, path);
@@ -71,7 +72,7 @@ export function listRepoFiles(root: string, neverOpen?: (path: string) => boolea
     }
   };
 
-  const listed = gitPaths(root);
+  const listed = options.includeAll ? null : gitPaths(root);
   if (listed) {
     const out: RepoFile[] = [];
     for (const path of listed) {
@@ -99,7 +100,7 @@ export function listRepoFiles(root: string, neverOpen?: (path: string) => boolea
         // classify reports it as unreadable
       }
       if (isDir) {
-        if (!SKIP_DIRS.has(entry.name)) walk(path);
+        if (options.includeAll || !SKIP_DIRS.has(entry.name)) walk(path);
         continue;
       }
       const f = classify(path);

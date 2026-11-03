@@ -1,6 +1,8 @@
 # Releasing
 
-Maintainer notes. Releases publish to npm as `@voyageurworks/launch-guard` from GitHub Actions (`.github/workflows/release.yml`), with provenance and no stored token. The first version was published by hand; every later one goes through the workflow below.
+Maintainer notes. Releases publish to npm as `@voyageurworks/launch-guard-pack` from GitHub Actions (`.github/workflows/release.yml`), with provenance and no stored token. The first version of this package (0.2.0) is published by hand; every later one goes through the workflow below. The command it installs is still `launch-guard`, and the GitHub repository keeps the name `launch-guard` (the trusted publisher and the workflow's repository check use the repository name, not the package name).
+
+The earlier package `@voyageurworks/launch-guard` (0.1.0 to 0.1.3) is deprecated in favour of this one, not unpublished: `npm deprecate "@voyageurworks/launch-guard@*" "Renamed to @voyageurworks/launch-guard-pack (same command, adds --pack)"`. Deprecation is reversible with an empty message; unpublishing is not.
 
 ## One-time setup (needs the maintainer's own npm account)
 

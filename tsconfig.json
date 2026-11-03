@@ -10,5 +10,5 @@
     "types": ["node"]
   },
   "include": ["src"],
-  "exclude": ["src/**/*.test.ts", "src/testRepos.ts"]
+  "exclude": ["src/**/*.test.ts", "src/testRepos.ts", "src/testTar.ts", "src/testNpm.ts"]
 }
