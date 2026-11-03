@@ -27,6 +27,21 @@ export interface TestRepo {
  */
 const GIT_TIMEOUT = 60_000;
 
+/**
+ * Removes a temp folder, retrying while something still has it open. On Windows a killed git child can keep a folder
+ * locked for longer than a short retry budget, which failed whole test runs with EBUSY after every assertion had
+ * passed. A temp folder that stays locked is left behind (the runner discards it) instead of failing the test.
+ */
+export function removeDir(root: string): void {
+  try {
+    rmSync(root, { recursive: true, force: true, maxRetries: 30, retryDelay: 200 });
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException)?.code;
+    if (process.platform === "win32" && (code === "EBUSY" || code === "EPERM" || code === "ENOTEMPTY" || code === "EACCES")) return;
+    throw err;
+  }
+}
+
 /** Plain temp dir with no git inside. */
 export function makeDir(prefix = "lg-test-"): { root: string; write(path: string, text: string): void; cleanup(): void } {
   const root = mkdtempSync(join(tmpdir(), prefix));
@@ -36,7 +51,7 @@ export function makeDir(prefix = "lg-test-"): { root: string; write(path: string
       mkdirSync(dirname(join(root, path)), { recursive: true });
       writeFileSync(join(root, path), text);
     },
-    cleanup: () => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }),
+    cleanup: () => removeDir(root),
   };
 }
 
