@@ -34,7 +34,9 @@ jobs:
       fail-fast: false
       matrix:
         node: [22, 24]
-    runs-on: macos-latest
+    # The Intel pool: GitHub's Apple-silicon pool (macos-latest) often has no free capacity and cancels jobs, while the
+    # Intel runner starts (handoff-desk's macOS jobs ran and passed on it on 2026-11-03).
+    runs-on: macos-15-intel
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
