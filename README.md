@@ -2,14 +2,14 @@
 
 # launch-guard
 
-[![npm](https://img.shields.io/npm/v/@voyageurworks/launch-guard.svg)](https://www.npmjs.com/package/@voyageurworks/launch-guard)
+[![npm](https://img.shields.io/npm/v/@voyageurworks/launch-guard-pack.svg)](https://www.npmjs.com/package/@voyageurworks/launch-guard-pack)
 [![CI](https://github.com/voyageurworks/launch-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/voyageurworks/launch-guard/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Check a private git repository before you make it public, and never print what it finds.**
 
 ```sh
-npx -y @voyageurworks/launch-guard path/to/your/repo
+npx -y @voyageurworks/launch-guard-pack path/to/your/repo
 ```
 
 You need Node 22 or newer and nothing else. It never edits the repository, and the only network step (a read-only `git ls-remote`) can be switched off with `--offline`. The exit code is `0` when nothing blocks publishing, `1` when something does.
@@ -42,7 +42,7 @@ Try the same thing in 30 seconds, with no real secret (bash, macOS, Linux or Git
 mkdir launch-guard-demo && cd launch-guard-demo && git init -q
 printf "const k = 'AKIA%s';\n" ABCDEFGHIJKLMNOP > app.js
 git add . && git -c user.name=demo -c user.email=demo commit -qm demo
-npx -y @voyageurworks/launch-guard . --offline
+npx -y @voyageurworks/launch-guard-pack . --offline
 ```
 
 By [Voyageur Works](https://github.com/voyageurworks). MIT licence.
@@ -73,7 +73,7 @@ Use gitleaks or TruffleHog for continuous scanning and to check live credentials
 ## First run, no setup
 
 ```
-npx -y @voyageurworks/launch-guard <repo>
+npx -y @voyageurworks/launch-guard-pack <repo>
 ```
 
 (From a clone, `node skill/launch-guard.mjs <repo>` does the same.) Replace `<repo>` with the path of the repository (leave it out to scan the current folder). Add `--offline` to skip the one network step (see "Network and files" below). Point it at the top folder of a repository: for a plain folder or a subfolder of a repository it skips the history and old-commit checks and says so. With no private list yet, it still checks for secrets, old commits that stay reachable, and the basics, and says plainly that the personal and restricted checks were skipped.
@@ -92,7 +92,7 @@ npx -y @voyageurworks/launch-guard <repo>
 A clean repository can still publish a leaky package, because what `npm publish` uploads is decided by `files`, `.npmignore` and `.gitignore`, not by what you committed. Assistant settings, `.env` files and source maps are easy to include by accident. `--pack` checks the package, not the repository:
 
 ```
-npx -y @voyageurworks/launch-guard . --pack --offline
+npx -y @voyageurworks/launch-guard-pack . --pack --offline
 ```
 
 It runs `npm pack --ignore-scripts` into a fresh temporary folder (if your `package.json` defines `prepack`, `prepare`, `postpack`, `prepublish`, `prepublishOnly`, `publish` or `postpublish`, it packs a copy of the project with those scripts removed instead, because npm 10, the npm that ships with Node 22, still runs `prepare` during `npm pack --ignore-scripts`; your own files are never changed), unpacks the tarball there with a small built-in reader (no links are created, no name may leave the folder, and the size and file count are capped), runs the secret scanner and your private list on **every file that would ship** (including `dist/` and bundled `node_modules/`), applies the package rules below, and deletes both temporary folders. Nothing is published, no lifecycle script runs, nothing is sent anywhere. The report is the same shape as before (text or `--json`, same exit codes) and the same promise holds: where and what kind, never the matched text. Paths are shown as they are inside the package.

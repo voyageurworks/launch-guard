@@ -1,5 +1,5 @@
 {
-  "name": "@voyageurworks/launch-guard",
+  "name": "@voyageurworks/launch-guard-pack",
   "version": "0.2.0",
   "description": "Scan a private git repo or the npm package you are about to publish, and report secrets, personal details, restricted terms and reachable old commits without printing private data.",
   "license": "MIT",
@@ -34,6 +34,8 @@
     "secrets-detection",
     "security-tools",
     "pre-push",
+    "npm-pack",
+    "npm-publish",
     "ai-agents"
   ],
   "scripts": {

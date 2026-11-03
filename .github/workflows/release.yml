@@ -44,7 +44,7 @@ jobs:
       - name: Is this version already on npm?
         id: published
         run: |
-          if npm view "@voyageurworks/launch-guard@$(node -p "require('./package.json').version")" version > /dev/null 2>&1; then
+          if npm view "$(node -p "const p=require('./package.json');p.name+'@'+p.version")" version > /dev/null 2>&1; then
             echo "already=true" >> "$GITHUB_OUTPUT"
             echo "::notice::This version is already on npm (published by hand), so there is nothing to publish."
           fi

@@ -75,7 +75,7 @@ This project runs the same job on itself (see `.github/workflows/ci.yml`, job `s
           node-version: 22
       # Build first if the published files are generated: --pack never runs your scripts.
       - run: npm ci --ignore-scripts && npm run build
-      - run: npx -y @voyageurworks/launch-guard . --pack --offline
+      - run: npx -y @voyageurworks/launch-guard-pack . --pack --offline
 ```
 
 The step fails (exit 1) only on a blocking finding, and exits 2 with one fixed message if the package cannot be built or read. Add `--json` to keep the report. As with the other runs, a runner has no private list, so only the secret scanner and the package rules apply there; run it on your own machine to apply your list to the package too.

@@ -2,6 +2,8 @@
 
 ## 0.2.0 - 2026-11-03
 
+**The package is now `@voyageurworks/launch-guard-pack`.** The command is still `launch-guard`, so scripts, hooks and the skill keep working; only the install name changes (`npx -y @voyageurworks/launch-guard-pack <repo>`). The earlier `@voyageurworks/launch-guard` (0.1.0 to 0.1.3) is deprecated in favour of it. The GitHub repository keeps its name.
+
 A new mode, `--pack`, and a few shared improvements. Nothing changes unless you use a new flag, except that the secret scanner now also recognises the credential forms listed below.
 
 - **`--pack`**: scans what `npm pack` would ship instead of the repository. It builds the tarball into a temporary folder with `--ignore-scripts` (nothing is published, no lifecycle script runs), unpacks it with a built-in reader (no links created, no path leaves the folder, size and file-count caps), runs the secret scanner and the private list on every file that would ship (including `dist/` and bundled `node_modules/`), applies package rules, and deletes the temporary folders. The report keeps the same text and JSON shapes and exit codes, and still shows only paths inside the package, fixed labels and numbers, never matched text.
