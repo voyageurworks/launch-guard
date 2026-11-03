@@ -3,7 +3,7 @@
 # launch-guard
 
 [![npm](https://img.shields.io/npm/v/@voyageurworks/launch-guard-pack.svg)](https://www.npmjs.com/package/@voyageurworks/launch-guard-pack)
-[![CI](https://github.com/voyageurworks/launch-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/voyageurworks/launch-guard/actions/workflows/ci.yml)
+[![CI](https://github.com/voyageurworks/launch-guard-pack/actions/workflows/ci.yml/badge.svg)](https://github.com/voyageurworks/launch-guard-pack/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Check a private git repository before you make it public, and never print what it finds.**
@@ -245,6 +245,7 @@ Codex has its own permission and sandbox settings, and they should be set so tha
 
 ## Honest limits
 
+- **macOS is not tested on every change.** CI runs on Linux and Windows (Node 22 and 24). macOS has its own workflow, which runs on every pull request, weekly and on demand, but GitHub often never assigns a macOS runner, so those runs are often cancelled. macOS on Node 22 has not been run for 0.2.x. The state is tracked in an open issue; the weekly workflow records it when a runner is available.
 - **A chat already holds everything typed or read in it.** If you paste a secret or your list into a conversation, no tool can take it back out.
 - **Fixing a leak means someone sees the line.** The report tells you where. You or your assistant still has to open that spot to change it.
 - **The existence of a category is disclosed.** "A personal detail was found in this file" is itself information, even though the detail is not shown.

@@ -1,11 +1,11 @@
 {
   "name": "@voyageurworks/launch-guard-pack",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Scan a private git repo or the npm package you are about to publish, and report secrets, personal details, restricted terms and reachable old commits without printing private data.",
   "license": "MIT",
-  "repository": { "type": "git", "url": "git+https://github.com/voyageurworks/launch-guard.git" },
-  "homepage": "https://github.com/voyageurworks/launch-guard#readme",
-  "bugs": { "url": "https://github.com/voyageurworks/launch-guard/issues" },
+  "repository": { "type": "git", "url": "git+https://github.com/voyageurworks/launch-guard-pack.git" },
+  "homepage": "https://github.com/voyageurworks/launch-guard-pack#readme",
+  "bugs": { "url": "https://github.com/voyageurworks/launch-guard-pack/issues" },
   "type": "module",
   "publishConfig": {
     "access": "public"

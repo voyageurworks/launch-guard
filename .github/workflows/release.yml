@@ -22,7 +22,7 @@ env:
 jobs:
   verify:
     # Prereleases are never published to npm; a fork never publishes.
-    if: github.event.release.prerelease == false && github.repository == 'voyageurworks/launch-guard'
+    if: github.event.release.prerelease == false && github.repository == 'voyageurworks/launch-guard-pack'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:

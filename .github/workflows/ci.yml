@@ -21,7 +21,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        # macOS runs in macos.yml (weekly and on demand): GitHub often never assigns a macOS runner, and a job that never
+        # starts would mark every push as failed even though everything that does run passed.
+        os: [ubuntu-latest, windows-latest]
         node: [22, 24]
     runs-on: ${{ matrix.os }}
     steps:
