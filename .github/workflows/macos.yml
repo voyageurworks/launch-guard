@@ -49,3 +49,28 @@ jobs:
       - run: pnpm build
       - name: Committed skill bundle is up to date
         run: git diff --exit-code -- skill/launch-guard.mjs
+
+  # Apple-silicon (arm64) macOS, one job per image. Probe: GitHub's arm64 pool often has no free capacity and cancels jobs,
+  # so these never fail the run (continue-on-error). When a label gets a runner it runs the whole suite.
+  arm64:
+    continue-on-error: true
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+      - name: Which machine this is
+        run: uname -m && sw_vers
+      - run: npm install --global pnpm@10
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm build
+      - name: Committed skill bundle is up to date
+        run: git diff --exit-code -- skill/launch-guard.mjs
