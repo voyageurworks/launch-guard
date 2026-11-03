@@ -4,6 +4,8 @@
 
 **The package is now `@voyageurworks/launch-guard-pack`.** The command is still `launch-guard`, so scripts, hooks and the skill keep working; only the install name changes (`npx -y @voyageurworks/launch-guard-pack <repo>`). The earlier `@voyageurworks/launch-guard` (0.1.0 to 0.1.3) is deprecated in favour of it. The GitHub repository keeps its name.
 
+**Test coverage for this release.** CI passed on ubuntu and Windows with Node 22 and 24, and on macOS with Node 24 (on the code just before the package rename). The macOS Node 22 job never got a runner from GitHub: it was cancelled after 15 minutes with no runner assigned, twice, and the macOS jobs for the final renamed code were still queued when the release was decided. The maintainer accepted releasing without those macOS results. The rename changed only package metadata, documentation and one workflow line, none of it macOS-specific, but macOS Node 22 has not been run for this version.
+
 A new mode, `--pack`, and a few shared improvements. Nothing changes unless you use a new flag, except that the secret scanner now also recognises the credential forms listed below.
 
 - **`--pack`**: scans what `npm pack` would ship instead of the repository. It builds the tarball into a temporary folder with `--ignore-scripts` (nothing is published, no lifecycle script runs), unpacks it with a built-in reader (no links created, no path leaves the folder, size and file-count caps), runs the secret scanner and the private list on every file that would ship (including `dist/` and bundled `node_modules/`), applies package rules, and deletes the temporary folders. The report keeps the same text and JSON shapes and exit codes, and still shows only paths inside the package, fixed labels and numbers, never matched text.
