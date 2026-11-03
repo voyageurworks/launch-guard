@@ -1,11 +1,14 @@
 name: macOS
 
-# The same checks as CI, on macOS. Not part of CI and not a required check: GitHub often never assigns a macOS runner,
-# and a job that never starts marked every push to main as failed. It still runs on every pull request, weekly and on
-# demand, so macOS is attempted on every change and a gap shows up on the pull request instead of going unseen.
-# Before a release, run it by hand on the release commit (Actions tab, "Run workflow") and record the result, or the
-# gap, in the release notes (docs/releasing.md). A job cancelled with "not acquired by Runner of type hosted" is a runner
-# shortage, not a code failure: re-run it by hand later, never in a loop.
+# The same checks as CI, on macOS: Intel (macos-15-intel) and Apple silicon (macos-15, arm64), on Node 22 and 24, plus the
+# newest macOS (macos-26, arm64) as a non-blocking extra. Not part of CI and not a required check: GitHub's macOS pools
+# are sometimes short of runners, and a job that never starts marked every push to main as failed. It runs on every pull
+# request, weekly and on demand, so macOS is attempted on every change and a gap shows up on the pull request instead of
+# going unseen. Before a release, run it by hand on the release commit (Actions tab, "Run workflow") and record the result,
+# or the gap, in the release notes (docs/releasing.md). A job cancelled with "not acquired by Runner of type hosted" is a
+# runner shortage, not a code failure: re-run it by hand later, never in a loop.
+# Checked on 2026-11-03: macos-14, macos-15 and macos-26 (arm64) and macos-15-intel all ran the whole suite and passed.
+# `macos-latest` is avoided on purpose: it mapped to an Apple-silicon image whose pool had no free capacity that day.
 on:
   pull_request:
   workflow_dispatch:
@@ -29,19 +32,23 @@ env:
 
 jobs:
   check:
+    name: macOS ${{ matrix.arch }} (Node ${{ matrix.node }})
     timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
+        include:
+          - { os: macos-15-intel, arch: x64 }
+          - { os: macos-15, arch: arm64 }
         node: [22, 24]
-    # The Intel pool: GitHub's Apple-silicon pool (macos-latest) often has no free capacity and cancels jobs, while the
-    # Intel runner starts (handoff-desk's macOS jobs ran and passed on it on 2026-11-03).
-    runs-on: macos-15-intel
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: ${{ matrix.node }}
+      - name: Which machine this is
+        run: uname -m && sw_vers
       - run: npm install --global pnpm@10
       - run: pnpm install --frozen-lockfile
       - run: pnpm check
@@ -50,16 +57,13 @@ jobs:
       - name: Committed skill bundle is up to date
         run: git diff --exit-code -- skill/launch-guard.mjs
 
-  # Apple-silicon (arm64) macOS, one job per image. Probe: GitHub's arm64 pool often has no free capacity and cancels jobs,
-  # so these never fail the run (continue-on-error). When a label gets a runner it runs the whole suite.
-  arm64:
+  # The newest macOS, Apple silicon. Its pool queued for about seven minutes before it started in the 2026-11-03 test, so it
+  # never fails the run (continue-on-error) and only runs Node 24.
+  latest:
+    name: macOS latest (macos-26, arm64, Node 24)
     continue-on-error: true
-    timeout-minutes: 15
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [macos-14, macos-15, macos-26]
-    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0

@@ -245,7 +245,7 @@ Codex has its own permission and sandbox settings, and they should be set so tha
 
 ## Honest limits
 
-- **macOS runs in its own workflow, not in the main CI, and only on Intel.** CI runs on Linux and Windows (Node 22 and 24). The `macOS` workflow runs on every pull request, weekly and on demand, on GitHub's Intel macOS runners (`macos-15-intel`), because GitHub's Apple-silicon pool often has no free capacity and cancels jobs. It passes on Node 22 and 24. Apple-silicon (arm64) macOS has not been run, and macOS is not a required check, so a merge does not wait for it. The state is tracked in an open issue.
+- **macOS runs in its own workflow, not in the main CI.** CI runs on Linux and Windows (Node 22 and 24). The `macOS` workflow runs on every pull request, weekly and on demand, on Intel (`macos-15-intel`) and Apple-silicon (`macos-15`) runners with Node 22 and 24, plus the newest macOS (`macos-26`) as a non-blocking extra. It passed on all of them on 2026-11-03 (macOS 14, 15 and 26 on Apple silicon, and Intel). It is not a required check, because GitHub's macOS pools are sometimes short of runners and a job that never starts would mark every push as failed; a merge does not wait for it. The state is tracked in an open issue.
 - **A chat already holds everything typed or read in it.** If you paste a secret or your list into a conversation, no tool can take it back out.
 - **Fixing a leak means someone sees the line.** The report tells you where. You or your assistant still has to open that spot to change it.
 - **The existence of a category is disclosed.** "A personal detail was found in this file" is itself information, even though the detail is not shown.
