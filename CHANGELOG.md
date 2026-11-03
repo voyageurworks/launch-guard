@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+No change to the tool. The `macOS` workflow now runs on GitHub's Intel macOS runners (`macos-15-intel`): the Apple-silicon pool (`macos-latest`) often had no free capacity and cancelled every job, while the Intel pool assigns runners. macOS passed on Node 22 and 24 on pull request #7 and on `main` (ebc6153), the first macOS Node 22 result for 0.2.x; this corrects the macOS note under 0.2.0, 0.2.1 and 0.2.2 below, which was true when written. Apple-silicon (arm64) macOS has not been run.
+
 ## 0.2.2 - 2026-11-03
 
 No change to the tool. The GitHub repository is now `voyageurworks/launch-guard-pack` (GitHub redirects the old address), so the package and the repository share one name; the package links, the CI badge and the release workflow's repository check use the new name. macOS tests moved out of the push CI into a separate workflow that is not a required check and runs on every pull request, weekly and on demand, because GitHub often never assigns a macOS runner and a job that never starts marked every push to main as failed. macOS is therefore still attempted on every change, but it is **not guaranteed to have run**: macOS on Node 22 has still not been run for 0.2.x. The release steps now require a manual macOS run on the release commit with the result, or the gap, written in the release notes. The macOS state is tracked in an open issue.
