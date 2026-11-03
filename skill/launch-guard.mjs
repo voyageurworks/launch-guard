@@ -2,8 +2,8 @@
 
 // dist/cli.js
 import { execFileSync as execFileSync5 } from "node:child_process";
-import { existsSync as existsSync3, mkdirSync, readdirSync as readdirSync2, realpathSync as realpathSync2, statSync, writeFileSync } from "node:fs";
-import { basename as basename2, dirname, join as join6, resolve as resolve2 } from "node:path";
+import { existsSync as existsSync4, mkdirSync as mkdirSync3, readdirSync as readdirSync3, realpathSync as realpathSync2, statSync as statSync3, writeFileSync as writeFileSync2 } from "node:fs";
+import { basename as basename2, dirname as dirname2, join as join10, resolve as resolve3 } from "node:path";
 
 // dist/denylist.js
 import { readFileSync } from "node:fs";
@@ -26,9 +26,9 @@ function loadDenyList(file) {
     const entry = i + 1;
     if (line.trim() === "" || line.startsWith("#"))
       return;
-    const sep = line.indexOf("|");
-    const kind = sep < 0 ? "" : line.slice(0, sep).trim();
-    const source = sep < 0 ? "" : line.slice(sep + 1);
+    const sep2 = line.indexOf("|");
+    const kind = sep2 < 0 ? "" : line.slice(0, sep2).trim();
+    const source = sep2 < 0 ? "" : line.slice(sep2 + 1);
     if (kind !== "personal" && kind !== "restricted" || source === "") {
       invalid.push(entry);
       return;
@@ -127,7 +127,7 @@ function gitPaths(root) {
     return null;
   }
 }
-function listRepoFiles(root, neverOpen) {
+function listRepoFiles(root, neverOpen, options = {}) {
   const classify = (path) => {
     const full = join2(root, path);
     try {
@@ -147,7 +147,7 @@ function listRepoFiles(root, neverOpen) {
       return { path, skipped: "unreadable" };
     }
   };
-  const listed = gitPaths(root);
+  const listed = options.includeAll ? null : gitPaths(root);
   if (listed) {
     const out2 = [];
     for (const path of listed) {
@@ -175,7 +175,7 @@ function listRepoFiles(root, neverOpen) {
       } catch {
       }
       if (isDir) {
-        if (!SKIP_DIRS.has(entry.name))
+        if (options.includeAll || !SKIP_DIRS.has(entry.name))
           walk(path);
         continue;
       }
@@ -188,49 +188,57 @@ function listRepoFiles(root, neverOpen) {
   return out;
 }
 
-// dist/report.js
-var ORDER = ["block", "warn", "info"];
-function exitCode(findings) {
-  return findings.some((f) => f.severity === "block") ? 1 : 0;
-}
-function renderLine(f) {
-  const where = f.line === null ? f.file : `${f.file}:${f.line}`;
-  const entry = f.entry === null ? "" : ` (list entry ${f.entry})`;
-  return `  ${where} ${f.label}${entry}`;
-}
-function renderJson(findings) {
-  const counts = { block: 0, warn: 0, info: 0 };
-  for (const f of findings)
-    counts[f.severity]++;
-  const picked = ORDER.flatMap((severity) => findings.filter((f) => f.severity === severity)).map((f) => ({
-    category: f.category,
-    severity: f.severity,
-    file: f.file,
-    line: f.line,
-    label: f.label,
-    entry: f.entry
-  }));
-  const report = { version: 1, result: exitCode(findings) === 1 ? "fail" : "pass", counts, findings: picked };
-  return `${JSON.stringify(report, null, 2)}
-`;
-}
-function renderReport(findings) {
-  if (findings.length === 0)
-    return "No findings.\n";
-  const out = [];
-  for (const severity of ORDER) {
-    const group = findings.filter((f) => f.severity === severity);
-    if (group.length === 0)
-      continue;
-    out.push(`${severity.toUpperCase()} (${group.length})`, ...group.map(renderLine), "");
+// dist/pack/build.js
+import { spawnSync } from "node:child_process";
+import { readdirSync as readdirSync2, statSync } from "node:fs";
+import { join as join3 } from "node:path";
+var NPM_PACK_TIMEOUT_MS = 12e4;
+function runNpmPack(cwd, destDir, timeoutMs = NPM_PACK_TIMEOUT_MS) {
+  try {
+    if (!statSync(cwd).isDirectory())
+      return null;
+    if (!statSync(join3(cwd, "package.json")).isFile())
+      return null;
+  } catch {
+    return null;
   }
-  return out.join("\n");
+  const args = ["pack", "--ignore-scripts", "--pack-destination", destDir];
+  const windows = process.platform === "win32";
+  const command = windows ? process.env.ComSpec ?? "cmd.exe" : "npm";
+  const argv = windows ? ["/d", "/s", "/c", "npm", ...args] : args;
+  const result = spawnSync(command, argv, {
+    cwd,
+    timeout: timeoutMs,
+    stdio: ["ignore", "ignore", "ignore"],
+    windowsHide: true,
+    env: {
+      ...process.env,
+      npm_config_ignore_scripts: "true",
+      npm_config_update_notifier: "false",
+      npm_config_audit: "false",
+      npm_config_fund: "false",
+      npm_config_logs_max: "0"
+    }
+  });
+  if (result.error || result.status !== 0)
+    return null;
+  try {
+    const tarballs = readdirSync2(destDir).filter((n) => n.endsWith(".tgz"));
+    return tarballs.length === 1 ? join3(destDir, tarballs[0]) : null;
+  } catch {
+    return null;
+  }
 }
+
+// dist/pack/run.js
+import { lstatSync as lstatSync2, mkdirSync as mkdirSync2, mkdtempSync, readFileSync as readFileSync4, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join as join7 } from "node:path";
 
 // dist/scan/basics.js
 import { execFileSync as execFileSync2 } from "node:child_process";
 import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
-import { join as join3 } from "node:path";
+import { join as join4 } from "node:path";
 
 // dist/allow.js
 var ALLOW = /launch-guard-allow:\s*\S/;
@@ -313,7 +321,7 @@ function hasNestedRepo(root) {
       timeout: GIT_QUICK_TIMEOUT_MS,
       stdio: ["ignore", "pipe", "ignore"]
     });
-    return untracked.split("\0").some((p) => p.endsWith("/") && existsSync2(join3(root, p, ".git")));
+    return untracked.split("\0").some((p) => p.endsWith("/") && existsSync2(join4(root, p, ".git")));
   } catch {
     return false;
   }
@@ -333,15 +341,19 @@ function hasGitlink(root) {
   }
 }
 function scanBasics(root, entries = [], listing) {
-  const findings = [];
   const files = listing ?? listRepoFiles(root, isEnvFile);
+  const findings = scanAiFiles(root, entries, files);
   const lower = new Set(files.map((f) => f.path.toLowerCase()));
+  return findings.concat(scanRepoBasics(root, files, lower));
+}
+function scanAiFiles(root, entries, files) {
+  const findings = [];
   for (const f of files) {
     if (f.skipped || isEnvFile(f.path) || !isAiFile(f.path))
       continue;
     let text;
     try {
-      text = readFileSync2(join3(root, f.path), "utf8");
+      text = readFileSync2(join4(root, f.path), "utf8");
     } catch {
       continue;
     }
@@ -361,6 +373,10 @@ function scanBasics(root, entries = [], listing) {
       });
     });
   }
+  return findings;
+}
+function scanRepoBasics(root, files, lower) {
+  const findings = [];
   if (lower.has(".gitmodules") || hasGitlink(root)) {
     findings.push({ category: "basics", severity: "info", file: "submodules", line: null, label: "submodule not scanned", entry: null });
   }
@@ -380,7 +396,7 @@ function scanBasics(root, entries = [], listing) {
   const funding = files.find((f) => !f.skipped && /^\.github\/funding\.ya?ml$/i.test(f.path));
   if (funding) {
     try {
-      const lines2 = readFileSync2(join3(root, funding.path), "utf8").split(/\r?\n/);
+      const lines2 = readFileSync2(join4(root, funding.path), "utf8").split(/\r?\n/);
       const first = lines2.findIndex((l) => l.trim() !== "" && !l.trim().startsWith("#"));
       if (first >= 0) {
         findings.push({
@@ -398,13 +414,401 @@ function scanBasics(root, entries = [], listing) {
   return findings;
 }
 
+// dist/scan/pack.js
+import { existsSync as existsSync3, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
+import { join as join5 } from "node:path";
+var AGENT_DIRS = /* @__PURE__ */ new Set([".claude", ".codex", ".cursor", ".gemini", ".windsurf"]);
+var SSH_KEY = /^id_(?:rsa|dsa|ecdsa|ed25519)$/;
+var MAX_MAP_BYTES = 64 * 1024 * 1024;
+var MAX_KEY_BYTES = 1024 * 1024;
+function make(severity, file, label) {
+  return { category: "package", severity, file, line: null, label, entry: null };
+}
+function isSessionFile(name) {
+  return /(?:session|transcript)/.test(name) && /\.(?:md|json|jsonl)$/.test(name);
+}
+function holdsPrivateKey(full) {
+  try {
+    if (statSync2(full).size > MAX_KEY_BYTES)
+      return false;
+    return readFileSync3(full, "utf8").includes("PRIVATE KEY");
+  } catch {
+    return false;
+  }
+}
+function mapEmbedsSources(full) {
+  try {
+    if (statSync2(full).size > MAX_MAP_BYTES)
+      return null;
+    const parsed = JSON.parse(readFileSync3(full, "utf8"));
+    if (typeof parsed !== "object" || parsed === null)
+      return null;
+    const content = parsed.sourcesContent;
+    return Array.isArray(content) && content.some((c) => typeof c === "string" && c !== "");
+  } catch {
+    return null;
+  }
+}
+function scanPackageFiles(root, files) {
+  const findings = [];
+  for (const f of files) {
+    const path = f.path;
+    const parts = path.toLowerCase().split("/");
+    const name = parts[parts.length - 1];
+    const dirs = parts.slice(0, -1);
+    const bundled = dirs.includes("node_modules");
+    const full = join5(root, path);
+    if (dirs.some((d) => AGENT_DIRS.has(d)) || name === "settings.local.json") {
+      findings.push(make("block", path, "agent folder in package"));
+    } else if (!bundled && isSessionFile(name)) {
+      findings.push(make("block", path, "agent file in package"));
+    } else if (!bundled && isAiFile(path)) {
+      findings.push(make("warn", path, "agent file in package"));
+    }
+    if (isEnvFile(path))
+      findings.push(make("block", path, "env file in package"));
+    if (name === ".npmrc")
+      findings.push(make("block", path, ".npmrc in package"));
+    if (dirs.includes(".git") || name === ".git")
+      findings.push(make("block", path, "git data in package"));
+    if (SSH_KEY.test(name) || name.endsWith(".p12") || name.endsWith(".pfx")) {
+      findings.push(make("block", path, "private key file in package"));
+    } else if (name.endsWith(".pem") || name.endsWith(".key")) {
+      findings.push(holdsPrivateKey(full) ? make("block", path, "private key file in package") : make("warn", path, "key or certificate file in package"));
+    }
+    if (name.endsWith(".map")) {
+      const embeds = mapEmbedsSources(full);
+      if (embeds === null)
+        findings.push(make("warn", path, "source map in package"));
+      else if (embeds)
+        findings.push(make("warn", path, "source map with sources"));
+    }
+  }
+  return findings;
+}
+function scanPackageManifest(root, sourceRoot) {
+  let manifest;
+  try {
+    const parsed = JSON.parse(readFileSync3(join5(root, "package.json"), "utf8"));
+    if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
+      return [];
+    manifest = parsed;
+  } catch {
+    return [];
+  }
+  const findings = [];
+  if (!Array.isArray(manifest.files) && !existsSync3(join5(sourceRoot, ".npmignore"))) {
+    findings.push(make("warn", "package.json", "no files list in package"));
+  }
+  const scripts = manifest.scripts;
+  if (typeof scripts === "object" && scripts !== null) {
+    const s = scripts;
+    if (["install", "preinstall", "postinstall"].some((k) => typeof s[k] === "string")) {
+      findings.push(make("warn", "package.json", "install script in package"));
+    }
+  }
+  return findings;
+}
+
+// dist/skipped.js
+var MAX_SKIPPED_NOTES = 25;
+function skippedNotes(files, entries) {
+  const skipped = files.filter((f) => f.skipped !== void 0);
+  const notes = skipped.slice(0, MAX_SKIPPED_NOTES).map((f) => ({
+    category: "basics",
+    severity: "info",
+    file: displayPath(f.path, entries),
+    line: null,
+    label: "file skipped",
+    entry: null
+  }));
+  if (skipped.length > MAX_SKIPPED_NOTES) {
+    notes.push({ category: "basics", severity: "info", file: "files", line: null, label: "more files skipped", entry: null });
+  }
+  return notes;
+}
+
+// dist/pack/tar.js
+import { mkdirSync, writeFileSync } from "node:fs";
+import { dirname, join as join6, resolve, sep } from "node:path";
+import { gunzipSync } from "node:zlib";
+var TarError = class extends Error {
+  constructor(message) {
+    super(message);
+    this.name = "TarError";
+  }
+};
+var DEFAULT_TAR_LIMITS = { maxTotalBytes: 256 * 1024 * 1024, maxFiles: 5e4 };
+var BLOCK = 512;
+var WINDOWS_RESERVED = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])$/i;
+var BAD_CHARS = /[\u0000-\u001f\\]/;
+var WINDOWS_BAD_CHARS = /[<>:"|?*]/;
+function readString(buf, start, len) {
+  const slice = buf.subarray(start, start + len);
+  const nul = slice.indexOf(0);
+  return (nul === -1 ? slice : slice.subarray(0, nul)).toString("utf8");
+}
+function readOctal(buf, start, len) {
+  if ((buf[start] & 128) !== 0)
+    throw new TarError("unsupported size encoding");
+  const text = readString(buf, start, len).trim();
+  if (text === "")
+    return 0;
+  if (!/^[0-7]+$/.test(text))
+    throw new TarError("bad number in header");
+  return parseInt(text, 8);
+}
+function checksumOk(header) {
+  let sum = 0;
+  for (let i = 0; i < BLOCK; i++)
+    sum += i >= 148 && i < 156 ? 32 : header[i];
+  let stored;
+  try {
+    stored = readOctal(header, 148, 8);
+  } catch {
+    return false;
+  }
+  return stored === sum;
+}
+function parsePax(data) {
+  const out = /* @__PURE__ */ new Map();
+  let pos = 0;
+  while (pos < data.length) {
+    const space = data.indexOf(32, pos);
+    if (space === -1)
+      throw new TarError("bad pax record");
+    const len = Number(data.subarray(pos, space).toString("ascii"));
+    if (!Number.isInteger(len) || len <= space - pos + 1 || pos + len > data.length)
+      throw new TarError("bad pax record");
+    const record = data.subarray(space + 1, pos + len - 1).toString("utf8");
+    const eq = record.indexOf("=");
+    if (eq > 0)
+      out.set(record.slice(0, eq), record.slice(eq + 1));
+    pos += len;
+  }
+  return out;
+}
+function safeName(raw, windowsNames) {
+  if (raw.startsWith("/") || /^[A-Za-z]:/.test(raw))
+    return null;
+  const segments = [];
+  for (const s of raw.split("/")) {
+    if (s === "" || s === ".")
+      continue;
+    if (s === "..")
+      return null;
+    if (BAD_CHARS.test(s))
+      return null;
+    segments.push(s);
+  }
+  segments.shift();
+  if (windowsNames) {
+    for (const s of segments) {
+      if (WINDOWS_BAD_CHARS.test(s) || WINDOWS_RESERVED.test(s.split(".")[0]) || /[. ]$/.test(s))
+        return null;
+    }
+  }
+  return segments.join("/");
+}
+function extractTarball(tgz, dest, options = {}) {
+  const { maxTotalBytes, maxFiles, windowsNames } = { ...DEFAULT_TAR_LIMITS, windowsNames: process.platform === "win32", ...options };
+  let tar;
+  try {
+    tar = gunzipSync(tgz, { maxOutputLength: maxTotalBytes + (maxFiles + 16) * 2048 });
+  } catch {
+    throw new TarError("not a readable gzip archive");
+  }
+  const root = resolve(dest);
+  const files = /* @__PURE__ */ new Set();
+  const links = /* @__PURE__ */ new Set();
+  let unsafe = 0;
+  let total = 0;
+  let count = 0;
+  let pending = {};
+  let pos = 0;
+  while (pos < tar.length) {
+    if (tar.length - pos < BLOCK)
+      throw new TarError("truncated archive");
+    const header = tar.subarray(pos, pos + BLOCK);
+    if (header.every((b) => b === 0))
+      break;
+    if (!checksumOk(header))
+      throw new TarError("bad header checksum");
+    pos += BLOCK;
+    const type = String.fromCharCode(header[156]);
+    let size = readOctal(header, 124, 12);
+    if (pending.size !== void 0 && type !== "x" && type !== "g" && type !== "L" && type !== "K")
+      size = pending.size;
+    if (pos + size > tar.length)
+      throw new TarError("truncated archive");
+    const body = tar.subarray(pos, pos + size);
+    pos += Math.ceil(size / BLOCK) * BLOCK;
+    if (type === "x") {
+      const pax = parsePax(body);
+      const sizeText = pax.get("size");
+      pending = { path: pax.get("path"), linkpath: pax.get("linkpath"), size: sizeText === void 0 ? void 0 : Number(sizeText) };
+      if (pending.size !== void 0 && (!Number.isInteger(pending.size) || pending.size < 0))
+        throw new TarError("bad pax size");
+      continue;
+    }
+    if (type === "g")
+      continue;
+    if (type === "L") {
+      pending.path = readString(body, 0, body.length);
+      continue;
+    }
+    if (type === "K") {
+      pending.linkpath = readString(body, 0, body.length);
+      continue;
+    }
+    let name = pending.path;
+    if (name === void 0) {
+      name = readString(header, 0, 100);
+      const prefix = readString(header, 345, 155);
+      if (prefix !== "" && readString(header, 257, 5) === "ustar")
+        name = `${prefix}/${name}`;
+    }
+    pending = {};
+    const clean = safeName(name, windowsNames);
+    if (clean === null) {
+      unsafe++;
+      continue;
+    }
+    if (type === "5")
+      continue;
+    if (clean === "")
+      continue;
+    const isFile = type === "0" || type === "\0" || type === "7";
+    if (++count > maxFiles)
+      throw new TarError("too many files");
+    if (!isFile) {
+      links.add(clean);
+      continue;
+    }
+    total += size;
+    if (total > maxTotalBytes)
+      throw new TarError("archive is too large");
+    const target = join6(root, ...clean.split("/"));
+    if (!target.startsWith(root + sep)) {
+      unsafe++;
+      continue;
+    }
+    try {
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, body);
+    } catch {
+      unsafe++;
+      continue;
+    }
+    files.add(clean);
+  }
+  return { files: [...files], links: [...links], unsafe };
+}
+
+// dist/pack/run.js
+function note(severity, file, label) {
+  return { category: "package", severity, file, line: null, label, entry: null };
+}
+function formatSize(bytes) {
+  if (bytes < 1024)
+    return `${bytes} B`;
+  if (bytes < 1024 * 1024)
+    return `${(bytes / 1024).toFixed(1)} KiB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
+}
+function scanPackage(sourceRoot, entries, deps) {
+  const work = mkdtempSync(join7(tmpdir(), "lg-pack-"));
+  try {
+    const tgzDir = join7(work, "tgz");
+    const pkgDir = join7(work, "pkg");
+    mkdirSync2(tgzDir);
+    mkdirSync2(pkgDir);
+    const tgzPath = deps.pack(sourceRoot, tgzDir);
+    if (tgzPath === null)
+      return { ok: false, reason: "build" };
+    let extracted;
+    try {
+      extracted = extractTarball(readFileSync4(tgzPath), pkgDir);
+    } catch (err) {
+      if (err instanceof TarError)
+        return { ok: false, reason: "read" };
+      throw err;
+    }
+    const files = listRepoFiles(pkgDir, isEnvFile, { includeAll: true });
+    const found = [
+      ...deps.secrets(pkgDir, entries, files),
+      ...entries.length > 0 ? deps.terms(pkgDir, entries, void 0, files) : [],
+      ...scanPackageFiles(pkgDir, files),
+      ...scanPackageManifest(pkgDir, sourceRoot),
+      ...scanAiFiles(pkgDir, entries, files)
+    ].map((f) => f.category === "package" ? { ...f, file: displayPath(f.file, entries) } : f);
+    for (const link of extracted.links)
+      found.push(note("info", displayPath(link, entries), "link in package"));
+    if (extracted.unsafe > 0)
+      found.push(note("warn", "package", "unsafe path in package"));
+    found.push(...skippedNotes(files, entries));
+    let bytes = 0;
+    for (const f of extracted.files) {
+      try {
+        bytes += lstatSync2(join7(pkgDir, ...f.split("/"))).size;
+      } catch {
+      }
+    }
+    found.push(note("info", "npm pack", "packed without running scripts"));
+    found.push(note("info", "history", "history not part of a package"));
+    found.push(note("info", `${extracted.files.length} files, ${formatSize(bytes)} unpacked`, "package contents"));
+    return { ok: true, findings: found };
+  } finally {
+    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  }
+}
+
+// dist/report.js
+var ORDER = ["block", "warn", "info"];
+function exitCode(findings, failOn = "block") {
+  return findings.some((f) => f.severity === "block" || failOn === "warn" && f.severity === "warn") ? 1 : 0;
+}
+function renderLine(f) {
+  const where = f.line === null ? f.file : `${f.file}:${f.line}`;
+  const entry = f.entry === null ? "" : ` (list entry ${f.entry})`;
+  return `  ${where} ${f.label}${entry}`;
+}
+function renderJson(findings, failOn = "block") {
+  const counts = { block: 0, warn: 0, info: 0 };
+  for (const f of findings)
+    counts[f.severity]++;
+  const picked = ORDER.flatMap((severity) => findings.filter((f) => f.severity === severity)).map((f) => ({
+    category: f.category,
+    severity: f.severity,
+    file: f.file,
+    line: f.line,
+    label: f.label,
+    entry: f.entry
+  }));
+  const report = { version: 1, result: exitCode(findings, failOn) === 1 ? "fail" : "pass", counts, findings: picked };
+  return `${JSON.stringify(report, null, 2)}
+`;
+}
+function renderReport(findings) {
+  if (findings.length === 0)
+    return "No findings.\n";
+  const out = [];
+  for (const severity of ORDER) {
+    const group = findings.filter((f) => f.severity === severity);
+    if (group.length === 0)
+      continue;
+    out.push(`${severity.toUpperCase()} (${group.length})`, ...group.map(renderLine), "");
+  }
+  return out.join("\n");
+}
+
 // dist/scan/history.js
 import { execFileSync as execFileSync3 } from "node:child_process";
 import { randomBytes } from "node:crypto";
 
 // dist/scan/secrets.js
-import { readFileSync as readFileSync3 } from "node:fs";
-import { join as join4 } from "node:path";
+import { readFileSync as readFileSync5 } from "node:fs";
+import { join as join8 } from "node:path";
 var ENTROPY_THRESHOLD = 3.5;
 var MIN_VALUE_LENGTH = 20;
 var KNOWN_FORMATS = [
@@ -654,7 +1058,7 @@ function scanSecrets(root, entries = [], listing) {
       continue;
     let text;
     try {
-      text = readFileSync3(join4(root, f.path), "utf8");
+      text = readFileSync5(join8(root, f.path), "utf8");
     } catch {
       continue;
     }
@@ -679,13 +1083,13 @@ function scanSecrets(root, entries = [], listing) {
 }
 
 // dist/scan/terms.js
-import { readFileSync as readFileSync4, realpathSync } from "node:fs";
-import { isAbsolute, join as join5, relative, resolve } from "node:path";
+import { readFileSync as readFileSync6, realpathSync } from "node:fs";
+import { isAbsolute, join as join9, relative, resolve as resolve2 } from "node:path";
 function real(p) {
   try {
     return realpathSync(p);
   } catch {
-    return resolve(p);
+    return resolve2(p);
   }
 }
 function insideRepo(root, file) {
@@ -735,7 +1139,7 @@ function scanTerms(root, entries, listFile, listing) {
       continue;
     let text;
     try {
-      text = readFileSync4(join5(root, f.path), "utf8").normalize("NFC");
+      text = readFileSync6(join9(root, f.path), "utf8").normalize("NFC");
     } catch {
       continue;
     }
@@ -782,7 +1186,7 @@ function supportsRemerge(root) {
     return false;
   }
 }
-function note(severity, label) {
+function note2(severity, label) {
   return { category: "history", severity, file: "history", line: null, label, entry: null };
 }
 function hit(file, label, entry, line, path) {
@@ -882,12 +1286,12 @@ function scanHistory(root, entries, options = {}) {
     shallow = git(root, ["rev-parse", "--is-shallow-repository"], maxBuffer).trim() === "true";
     shas = git(root, ["rev-list", "--all", "--reflog"], maxBuffer).split(/\r?\n/).filter((s) => s !== "");
   } catch {
-    return [note("info", "history incomplete")];
+    return [note2("info", "history incomplete")];
   }
   if (shas.some((s) => !FULL_SHA.test(s)))
-    return [note("info", "history incomplete")];
+    return [note2("info", "history incomplete")];
   if (shas.length === 0)
-    return [note("info", "no commits")];
+    return [note2("info", "no commits")];
   const out = [];
   let incomplete = shallow;
   try {
@@ -1023,7 +1427,7 @@ function scanHistory(root, entries, options = {}) {
     return true;
   });
   if (incomplete)
-    unique.unshift(note("info", "history incomplete"));
+    unique.unshift(note2("info", "history incomplete"));
   return unique;
 }
 
@@ -1177,11 +1581,11 @@ var REAL = {
   history: scanHistory,
   reachability: (root, offline) => checkReachability(root, { offline }),
   basics: scanBasics,
-  isRepoRoot
+  isRepoRoot,
+  pack: runNpmPack
 };
-var MAX_SKIPPED_NOTES = 25;
 var USAGE = [
-  "Usage: launch-guard [path] [--list <file>] [--offline] [--json] [--init-list [file]] [--print-hook] [--help]",
+  "Usage: launch-guard [path] [--list <file>] [--offline] [--json] [--pack] [--fail-on <block|warn>] [--init-list [file]] [--print-hook] [--help]",
   "",
   "Scans a git repository before it goes public and reports secrets, personal",
   "details, restricted terms and reachable old commits. It does not print a secret,",
@@ -1196,6 +1600,11 @@ var USAGE = [
   "                (default: ~/.config/launch-guard/private-list.txt)",
   "  --offline     do not contact any remote (skips the hidden pull-request ref check)",
   "  --json        print the report as JSON (same fields, still no private data) instead of text",
+  "  --fail-on <block|warn>",
+  "                the lowest level that fails the run (default block); warn also fails on warnings",
+  "  --pack        scan what `npm pack` would ship instead of the repository: it builds the tarball in a temp folder",
+  "                (it does not run lifecycle scripts and never publishes), scans its contents, then deletes it;",
+  "                git history is not part of a package, so the history and remote checks are skipped",
   "  --init-list [file]",
   "                write a template private list (comment lines only) for you to fill in with",
   "                your own editor; refuses to overwrite a file or to write inside a git repo",
@@ -1205,8 +1614,10 @@ var USAGE = [
   "Exit codes: 0 no blocking findings, 1 at least one blocking finding, 2 usage or setup problem.",
   ""
 ].join("\n");
-var HINT = "Usage: launch-guard [path] [--list <file>] [--offline] [--json] [--init-list [file]] [--print-hook] [--help]\n";
+var HINT = "Usage: launch-guard [path] [--list <file>] [--offline] [--json] [--pack] [--fail-on <block|warn>] [--init-list [file]] [--print-hook] [--help]\n";
 var FAIL_PATH = "launch-guard: the target path is not a readable directory.\n";
+var FAIL_PACK_BUILD = "launch-guard: the package could not be built.\n";
+var FAIL_PACK_READ = "launch-guard: the package could not be read.\n";
 var FAIL_LIST = "launch-guard: the private list is missing, unreadable or invalid.\n";
 var FAIL_ARGS = `launch-guard: unrecognised or incomplete arguments.
 ${HINT}`;
@@ -1241,6 +1652,8 @@ function parseArgs(argv) {
   let offline = false;
   let json = false;
   let hook = false;
+  let pack = false;
+  let failOn = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--help" || a === "-h")
@@ -1255,6 +1668,19 @@ function parseArgs(argv) {
       if (json)
         return null;
       json = true;
+      continue;
+    }
+    if (a === "--fail-on") {
+      const v = argv[++i];
+      if (failOn !== null || v !== "block" && v !== "warn")
+        return null;
+      failOn = v;
+      continue;
+    }
+    if (a === "--pack") {
+      if (pack)
+        return null;
+      pack = true;
       continue;
     }
     if (a === "--print-hook") {
@@ -1287,26 +1713,26 @@ function parseArgs(argv) {
     }
   }
   if (hook) {
-    return init !== void 0 || path !== null || list !== null || offline || json ? null : { help: false, hook: true };
+    return init !== void 0 || path !== null || list !== null || offline || json || pack || failOn !== null ? null : { help: false, hook: true };
   }
-  if (init !== void 0 && (path !== null || list !== null || offline || json))
+  if (init !== void 0 && (path !== null || list !== null || offline || json || pack || failOn !== null))
     return null;
-  return { help: false, hook: false, init, path: path ?? ".", list, offline, json };
+  return { help: false, hook: false, init, path: path ?? ".", list, offline, json, pack, failOn: failOn ?? "block" };
 }
 function insideGitRepo(p) {
-  let dir = dirname(resolve2(p));
+  let dir = dirname2(resolve3(p));
   for (; ; ) {
-    if (existsSync3(join6(dir, ".git")))
+    if (existsSync4(join10(dir, ".git")))
       return true;
-    const up = dirname(dir);
+    const up = dirname2(dir);
     if (up === dir)
       return false;
     dir = up;
   }
 }
 function initList(target, io) {
-  const file = resolve2(target);
-  if (existsSync3(file)) {
+  const file = resolve3(target);
+  if (existsSync4(file)) {
     io.err(FAIL_EXISTS);
     return 2;
   }
@@ -1315,8 +1741,8 @@ function initList(target, io) {
     return 2;
   }
   try {
-    mkdirSync(dirname(file), { recursive: true });
-    writeFileSync(file, TEMPLATE, { flag: "wx" });
+    mkdirSync3(dirname2(file), { recursive: true });
+    writeFileSync2(file, TEMPLATE, { flag: "wx" });
   } catch {
     io.err(FAIL_INIT);
     return 2;
@@ -1343,7 +1769,7 @@ function isRepoRoot(root) {
     if (top === "")
       return false;
     const norm = (p) => {
-      const r = resolve2(realpathSync2.native(p));
+      const r = resolve3(realpathSync2.native(p));
       return process.platform === "win32" ? r.toLowerCase() : r;
     };
     return norm(top) === norm(root);
@@ -1353,15 +1779,15 @@ function isRepoRoot(root) {
 }
 function isReadableDir(p) {
   try {
-    if (!statSync(p).isDirectory())
+    if (!statSync3(p).isDirectory())
       return false;
-    readdirSync2(p);
+    readdirSync3(p);
     return true;
   } catch {
     return false;
   }
 }
-function note2(severity, label, file = "list") {
+function note3(severity, label, file = "list") {
   return { category: "basics", severity, file, line: null, label, entry: null };
 }
 async function main(argv, io, scanners = REAL) {
@@ -1391,7 +1817,7 @@ async function run(argv, io, scanners) {
   }
   if (args.init !== void 0)
     return initList(args.init ?? defaultDenyListPath(), io);
-  const root = resolve2(args.path);
+  const root = resolve3(args.path);
   if (!isReadableDir(root)) {
     io.err(FAIL_PATH);
     return 2;
@@ -1400,8 +1826,8 @@ async function run(argv, io, scanners) {
   let entries = [];
   let listFile;
   const explicit = args.list !== null;
-  const file = explicit ? resolve2(args.list) : defaultDenyListPath();
-  if (explicit || existsSync3(file)) {
+  const file = explicit ? resolve3(args.list) : defaultDenyListPath();
+  if (explicit || existsSync4(file)) {
     const loaded = loadDenyList(file);
     if (loaded.problem !== null) {
       io.err(FAIL_LIST);
@@ -1410,38 +1836,39 @@ async function run(argv, io, scanners) {
     entries = loaded.entries;
     listFile = file;
     if (entries.length === 0)
-      findings.push(note2("warn", "private list has no entries"));
+      findings.push(note3("warn", "private list has no entries"));
   } else {
-    findings.push(note2("info", "checks skipped: no private list"));
+    findings.push(note3("info", "checks skipped: no private list"));
   }
-  const files = scanners.listFiles(root);
-  findings.push(...scanners.secrets(root, entries, files));
-  if (entries.length > 0)
-    findings.push(...scanners.terms(root, entries, listFile, files));
-  const isRoot = scanners.isRepoRoot?.(root) ?? true;
-  if (isRoot) {
-    findings.push(...scanners.history(root, entries));
-    findings.push(...scanners.reachability(root, args.offline));
-  } else {
-    findings.push(note2("warn", "not a repository root", "repository"));
-  }
-  findings.push(...scanners.basics(root, entries, files));
-  const skipped = files.filter((f) => f.skipped !== void 0);
-  for (const f of skipped.slice(0, MAX_SKIPPED_NOTES)) {
-    findings.push({
-      category: "basics",
-      severity: "info",
-      file: displayPath(f.path, entries),
-      line: null,
-      label: "file skipped",
-      entry: null
+  if (args.pack) {
+    const outcome = scanPackage(root, entries, {
+      pack: scanners.pack ?? runNpmPack,
+      secrets: scanners.secrets,
+      terms: scanners.terms
     });
+    if (!outcome.ok) {
+      io.err(outcome.reason === "build" ? FAIL_PACK_BUILD : FAIL_PACK_READ);
+      return 2;
+    }
+    findings.push(...outcome.findings);
+  } else {
+    const files = scanners.listFiles(root);
+    findings.push(...scanners.secrets(root, entries, files));
+    if (entries.length > 0)
+      findings.push(...scanners.terms(root, entries, listFile, files));
+    const isRoot = scanners.isRepoRoot?.(root) ?? true;
+    if (isRoot) {
+      findings.push(...scanners.history(root, entries));
+      findings.push(...scanners.reachability(root, args.offline));
+    } else {
+      findings.push(note3("warn", "not a repository root", "repository"));
+    }
+    findings.push(...scanners.basics(root, entries, files));
+    findings.push(...skippedNotes(files, entries));
   }
-  if (skipped.length > MAX_SKIPPED_NOTES)
-    findings.push(note2("info", "more files skipped", "files"));
-  const code = exitCode(findings);
+  const code = exitCode(findings, args.failOn);
   if (args.json) {
-    io.out(renderJson(findings));
+    io.out(renderJson(findings, args.failOn));
     return code;
   }
   io.out(renderReport(findings));

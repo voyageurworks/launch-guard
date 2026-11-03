@@ -15,7 +15,7 @@ node <this skill's directory>/launch-guard.mjs <repo path>
 
 This skill works for both Claude Code and Codex: it is plain markdown with `name` and `description` frontmatter, so copy the whole folder into either tool's skills directory.
 
-Needs Node 22 or newer. Read only the tool's output. The last line is `RESULT: PASS` or `RESULT: FAIL`. Add `--json` for the same report as a JSON document (a `result` field of `pass` or `fail` replaces that line); the findings and the exit code are identical. `--print-hook` only prints a git pre-push hook for the user to save themselves: never write it into their repository for them.
+Needs Node 22 or newer. Read only the tool's output. The last line is `RESULT: PASS` or `RESULT: FAIL`. Add `--json` for the same report as a JSON document (a `result` field of `pass` or `fail` replaces that line); the findings and the exit code are identical. `--pack` checks what `npm pack` would publish instead of the repository (it runs `npm pack --ignore-scripts` in a temp folder, never publishes, and deletes the temp folder); use it before `npm publish`, and build first if the published files are generated. `--print-hook` only prints a git pre-push hook for the user to save themselves: never write it into their repository for them.
 
 ## Hard rules about the private list
 

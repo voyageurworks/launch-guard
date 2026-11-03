@@ -13,7 +13,7 @@ const AI_NAMES = new Set(["claude.md", "agents.md", "gemini.md", ".cursorrules"]
 const AI_DIRS = new Set([".claude", ".codex", ".cursor", ".windsurf"]);
 
 /** True for AI-assistant files, memory files and session notes (decided from the path alone). */
-function isAiFile(path: string): boolean {
+export function isAiFile(path: string): boolean {
   const parts = path.toLowerCase().split("/");
   const name = parts[parts.length - 1];
   const dirs = parts.slice(0, -1);
@@ -93,10 +93,15 @@ function hasGitlink(root: string): boolean {
  * SECURITY, a CI workflow and an active FUNDING.yml. Findings carry only fixed text, paths and line numbers.
  */
 export function scanBasics(root: string, entries: DenyEntry[] = [], listing?: RepoFile[]): Finding[] {
-  const findings: Finding[] = [];
   const files = listing ?? listRepoFiles(root, isEnvFile);
+  const findings: Finding[] = scanAiFiles(root, entries, files);
   const lower = new Set(files.map((f) => f.path.toLowerCase()));
+  return findings.concat(scanRepoBasics(root, files, lower));
+}
 
+/** The user-profile-path check on AI-assistant, memory and session files. Reads files only; it never runs git. */
+export function scanAiFiles(root: string, entries: DenyEntry[], files: RepoFile[]): Finding[] {
+  const findings: Finding[] = [];
   for (const f of files) {
     if (f.skipped || isEnvFile(f.path) || !isAiFile(f.path)) continue;
     let text: string;
@@ -120,6 +125,12 @@ export function scanBasics(root: string, entries: DenyEntry[] = [], listing?: Re
       });
     });
   }
+  return findings;
+}
+
+/** The repository-level checks (submodules, nested repositories, LICENSE, SECURITY, CI, FUNDING). These run git. */
+function scanRepoBasics(root: string, files: RepoFile[], lower: Set<string>): Finding[] {
+  const findings: Finding[] = [];
 
   // A submodule is another repository: its files and history are not part of this scan.
   if (lower.has(".gitmodules") || hasGitlink(root)) {

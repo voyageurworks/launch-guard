@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **`--pack`**: scans what `npm pack` would ship instead of the repository. It builds the tarball into a temporary folder with `--ignore-scripts` (nothing is published, no lifecycle script runs), unpacks it with a built-in reader (no links created, no path leaves the folder, size and file-count caps), runs the secret scanner and the private list on every file that would ship (including `dist/` and bundled `node_modules/`), applies package rules, and deletes the temporary folders. The report keeps the same text and JSON shapes and exit codes, and still shows only paths inside the package, fixed labels and numbers, never matched text.
+- Package rules: blocks assistant folders (`.claude`, `.codex`, `.cursor`, `.gemini`, `.windsurf`) and `settings.local.json`, session and transcript files, `.env*` files, `.npmrc`, `.git` data and private key files; warns about instruction files, `.pem`/`.key` files without a private key block, source maps that embed source text, a missing `files` list, and install-time scripts.
+- New labels, all under the new category `package`; the six fields per finding and `version: 1` of the JSON report are unchanged. `--pack` combines with a path, `--list`, `--json` and `--offline` (accepted, nothing to skip); not with `--init-list` or `--print-hook`. A package that cannot be built or read exits 2 with one fixed message.
+- **`--fail-on <block|warn>`**: `warn` makes warnings fail the run as well (exit 1, `RESULT: FAIL`, `"result": "fail"`). The default stays `block`, so nothing changes unless you ask. Works with every scan mode, including `--pack`.
+- Internal: `listRepoFiles` can walk `.git`, `node_modules` and `dist` for an unpacked package; the user-profile-path check is available without the git-based repository checks.
+
 ## 0.1.3 - 2026-11-02
 
 No change to the scanner. The README now starts with the one command (`npx -y @voyageurworks/launch-guard <repo>`), a real example of its output on a repository with a fake key, a 30-second demo you can run, and an honest comparison with gitleaks and TruffleHog (sourced from their READMEs). The skill install steps moved below it.
