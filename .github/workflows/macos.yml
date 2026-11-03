@@ -7,8 +7,11 @@ name: macOS
 # going unseen. Before a release, run it by hand on the release commit (Actions tab, "Run workflow") and record the result,
 # or the gap, in the release notes (docs/releasing.md). A job cancelled with "not acquired by Runner of type hosted" is a
 # runner shortage, not a code failure: re-run it by hand later, never in a loop.
-# Checked on 2026-11-03: macos-14, macos-15 and macos-26 (arm64) and macos-15-intel all ran the whole suite and passed.
-# `macos-latest` is avoided on purpose: it mapped to an Apple-silicon image whose pool had no free capacity that day.
+# Checked on 2026-11-03: macos-14, macos-15 and macos-26 (arm64) and macos-15-intel each ran the whole suite and passed at
+# least once. Availability changes by label and by minute: in one run macos-15 started at once and macos-26 queued for
+# about seven minutes; ten minutes later macos-26 started at once and macos-15 got no runner for 15 minutes and was
+# cancelled. So a cancelled macOS job is expected now and then, and none of these labels is reliable on its own.
+# `macos-latest` is avoided on purpose: it points at the newest image (macos-26), which had no free capacity on some runs.
 on:
   pull_request:
   workflow_dispatch:
@@ -38,9 +41,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - { os: macos-15-intel, arch: x64 }
-          - { os: macos-15, arch: arm64 }
-        node: [22, 24]
+          - { os: macos-15-intel, arch: x64, node: 22 }
+          - { os: macos-15-intel, arch: x64, node: 24 }
+          - { os: macos-15, arch: arm64, node: 22 }
+          - { os: macos-15, arch: arm64, node: 24 }
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

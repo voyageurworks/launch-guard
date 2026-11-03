@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-No change to the tool. The `macOS` workflow now runs on GitHub's Intel macOS runners (`macos-15-intel`): the Apple-silicon pool (`macos-latest`) often had no free capacity and cancelled every job, while the Intel pool assigns runners. macOS passed on Node 22 and 24 on pull request #7 and on `main` (ebc6153), the first macOS Node 22 result for 0.2.x; this corrects the macOS note under 0.2.0, 0.2.1 and 0.2.2 below, which was true when written. Apple-silicon (arm64) macOS has since been run too: `macos-14`, `macos-15` and `macos-26` all ran the whole suite and passed (382 tests each), so the macOS workflow now covers Intel and Apple silicon on Node 22 and 24, plus the newest macOS as a non-blocking extra.
+No change to the tool. The `macOS` workflow now runs on GitHub's Intel macOS runners (`macos-15-intel`): the Apple-silicon pool (`macos-latest`) often had no free capacity and cancelled every job, while the Intel pool assigns runners. macOS passed on Node 22 and 24 on pull request #7 and on `main` (ebc6153), the first macOS Node 22 result for 0.2.x; this corrects the macOS note under 0.2.0, 0.2.1 and 0.2.2 below, which was true when written. Apple-silicon (arm64) macOS has since been run too: `macos-14`, `macos-15` and `macos-26` each ran the whole suite and passed at least once (382 tests each), so the macOS workflow now covers Intel and Apple silicon on Node 22 and 24, plus the newest macOS as a non-blocking extra. Availability varies by image and by minute (a later run had no runner for `macos-15` while `macos-26` started at once), so a macOS job is sometimes cancelled; macOS stays a non-required check.
 
 ## 0.2.2 - 2026-11-03
 
