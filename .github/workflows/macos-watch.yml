@@ -53,7 +53,8 @@ jobs:
           case "$status/$conclusion" in
             completed/cancelled|completed/failure)
               echo "CI run $id for main's head was $status/$conclusion; re-running its failed and cancelled jobs."
-              gh run rerun "$id" --failed
+              # This job has no checkout, so gh cannot find the repository from a git remote: name it.
+              gh run rerun "$id" --failed --repo "$GITHUB_REPOSITORY"
               ;;
             *)
               echo "CI run $id for main's head is $status/$conclusion; leaving it alone."
