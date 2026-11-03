@@ -2,7 +2,7 @@
 
 ## 0.2.2 - 2026-11-03
 
-No change to the tool. The GitHub repository is now `voyageurworks/launch-guard-pack` (GitHub redirects the old address), so the package and the repository share one name; the package links, the CI badge and the release workflow's repository check use the new name. macOS tests moved out of the push and pull-request CI into a separate workflow that runs weekly and on demand, because GitHub often never assigns a macOS runner and a job that never starts marked every push as failed. macOS on Node 22 has still not been run for 0.2.x; the weekly workflow will record it when a runner is available.
+No change to the tool. The GitHub repository is now `voyageurworks/launch-guard-pack` (GitHub redirects the old address), so the package and the repository share one name; the package links, the CI badge and the release workflow's repository check use the new name. macOS tests moved out of the push CI into a separate workflow that is not a required check and runs on every pull request, weekly and on demand, because GitHub often never assigns a macOS runner and a job that never starts marked every push to main as failed. macOS is therefore still attempted on every change, but it is **not guaranteed to have run**: macOS on Node 22 has still not been run for 0.2.x. The release steps now require a manual macOS run on the release commit with the result, or the gap, written in the release notes. The macOS state is tracked in an open issue.
 
 ## 0.2.1 - 2026-11-03
 

@@ -1,12 +1,21 @@
 name: macOS
 
-# The same checks as CI, on macOS. Not part of CI, not a required check and not run on every push: GitHub often never
-# assigns a macOS runner, and a job that never starts would mark every push as failed. Runs once a week and on demand
-# (Actions tab, "Run workflow"); when a runner is available the result shows here.
+# The same checks as CI, on macOS. Not part of CI and not a required check: GitHub often never assigns a macOS runner,
+# and a job that never starts marked every push to main as failed. It still runs on every pull request, weekly and on
+# demand, so macOS is attempted on every change and a gap shows up on the pull request instead of going unseen.
+# Before a release, run it by hand on the release commit (Actions tab, "Run workflow") and record the result, or the
+# gap, in the release notes (docs/releasing.md). A job cancelled with "not acquired by Runner of type hosted" is a runner
+# shortage, not a code failure: re-run it by hand later, never in a loop.
 on:
+  pull_request:
   workflow_dispatch:
   schedule:
     - cron: "17 5 * * 1"
+
+# A stale run must never sit in the macOS queue and keep the newest one waiting.
+concurrency:
+  group: macos-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
