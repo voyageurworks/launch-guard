@@ -2,7 +2,7 @@
 
 ## Reporting a vulnerability
 
-Please report it privately, not in a public issue. Use GitHub's private vulnerability reporting: open the repository's **Security** tab and choose **Report a vulnerability**. It is turned on for the project's repository, `https://github.com/voyageurworks/launch-guard`.
+Please report it privately, not in a public issue. Use GitHub's private vulnerability reporting: open the repository's **Security** tab and choose **Report a vulnerability**. It is turned on for the project's repository, `https://github.com/voyageurworks/launch-guard-pack`.
 
 Please do not put real secrets, personal details or the contents of your private list in a report. A description of the steps, or a made-up example that shows the same behaviour, is enough.
 

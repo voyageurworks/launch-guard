@@ -3,7 +3,7 @@
 # launch-guard
 
 [![npm](https://img.shields.io/npm/v/@voyageurworks/launch-guard-pack.svg)](https://www.npmjs.com/package/@voyageurworks/launch-guard-pack)
-[![CI](https://github.com/voyageurworks/launch-guard/actions/workflows/ci.yml/badge.svg)](https://github.com/voyageurworks/launch-guard/actions/workflows/ci.yml)
+[![CI](https://github.com/voyageurworks/launch-guard-pack/actions/workflows/ci.yml/badge.svg)](https://github.com/voyageurworks/launch-guard-pack/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 **Check a private git repository before you make it public, and never print what it finds.**

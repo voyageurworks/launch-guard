@@ -1,6 +1,6 @@
 # Releasing
 
-Maintainer notes. Releases publish to npm as `@voyageurworks/launch-guard-pack` from GitHub Actions (`.github/workflows/release.yml`), with provenance and no stored token. The first version of this package (0.2.0) is published by hand; every later one goes through the workflow below. The command it installs is still `launch-guard`, and the GitHub repository keeps the name `launch-guard` (the trusted publisher and the workflow's repository check use the repository name, not the package name).
+Maintainer notes. Releases publish to npm as `@voyageurworks/launch-guard-pack` from GitHub Actions (`.github/workflows/release.yml`), with provenance and no stored token. The first version of this package (0.2.0) is published by hand; every later one goes through the workflow below. The command it installs is still `launch-guard`. The GitHub repository is `voyageurworks/launch-guard-pack` (renamed from `launch-guard` on 2026-11-03; GitHub redirects the old address). The trusted publisher and the workflow's repository check use the repository name, so renaming the repository again means updating both before the next release.
 
 The earlier package `@voyageurworks/launch-guard` (0.1.0 to 0.1.3) is deprecated in favour of this one, not unpublished: `npm deprecate "@voyageurworks/launch-guard@*" "Renamed to @voyageurworks/launch-guard-pack (same command, adds --pack)"`. Deprecation is reversible with an empty message; unpublishing is not.
 
@@ -8,14 +8,14 @@ The earlier package `@voyageurworks/launch-guard` (0.1.0 to 0.1.3) is deprecated
 
 1. Publish the first version by hand, because trusted publishing is configured on an existing package: `npm login`, then `npm publish --access public`.
 2. In the GitHub repository, Settings, Environments: create `npm-publish`, add yourself as **required reviewer**, and limit deployments to the tag pattern `v*`.
-3. On npmjs.com open the package, Settings, Trusted Publisher, GitHub Actions: organization `voyageurworks`, repository `launch-guard`, workflow `release.yml`, **Environment name `npm-publish`**, and tick **Allow npm publish** (the workflow runs `npm publish`; unticked, npm would stage every version for manual approval instead). npm asks for your two-factor method when you save it. With the environment name set, npm refuses any publish that did not pass the environment's approval, even from a modified workflow.
+3. On npmjs.com open the package, Settings, Trusted Publisher, GitHub Actions: organization `voyageurworks`, repository `launch-guard-pack`, workflow `release.yml`, **Environment name `npm-publish`**, and tick **Allow npm publish** (the workflow runs `npm publish`; unticked, npm would stage every version for manual approval instead). npm asks for your two-factor method when you save it. With the environment name set, npm refuses any publish that did not pass the environment's approval, even from a modified workflow.
 4. Package Settings, Publishing access: **Require two-factor authentication and disallow bypass 2fa tokens**.
 
 ## How a release is protected
 
 - `verify` job: read-only token. Installs with a frozen lockfile, checks, builds, tests and packs the tarball. It cannot reach npm.
 - `publish` job: the only job with `id-token: write`. It waits for your approval in the `npm-publish` environment, installs nothing, runs no repository code and publishes only the tarball `verify` built.
-- `release.yml` runs only for non-prerelease releases of `voyageurworks/launch-guard` itself; tags named `v*` cannot be moved or deleted (repository ruleset); only GitHub-owned actions, pinned by commit SHA, are allowed to run.
+- `release.yml` runs only for non-prerelease releases of `voyageurworks/launch-guard-pack` itself; tags named `v*` cannot be moved or deleted (repository ruleset); only GitHub-owned actions, pinned by commit SHA, are allowed to run.
 - Treat any change to `.github/workflows/` as sensitive and read it before merging.
 
 If npm already has the tagged version (the hand-published first one), the workflow notes that and skips both the build steps and the publish.

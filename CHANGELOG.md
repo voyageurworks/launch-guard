@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.2 - 2026-11-03
+
+No change to the tool. The GitHub repository is now `voyageurworks/launch-guard-pack` (GitHub redirects the old address), so the package and the repository share one name; the package links, the CI badge and the release workflow's repository check use the new name. macOS tests moved out of the push and pull-request CI into a separate workflow that runs weekly and on demand, because GitHub often never assigns a macOS runner and a job that never starts marked every push as failed. macOS on Node 22 has still not been run for 0.2.x; the weekly workflow will record it when a runner is available.
+
 ## 0.2.1 - 2026-11-03
 
 No change to the tool. This is the first version published by GitHub Actions through npm trusted publishing, which also gives it a provenance statement; 0.2.0 was published by hand. The macOS test note under 0.2.0 still applies: macOS on Node 22 has not been run for 0.2.x.
