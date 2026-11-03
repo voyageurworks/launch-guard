@@ -36,7 +36,7 @@ export function makeDir(prefix = "lg-test-"): { root: string; write(path: string
       mkdirSync(dirname(join(root, path)), { recursive: true });
       writeFileSync(join(root, path), text);
     },
-    cleanup: () => rmSync(root, { recursive: true, force: true }),
+    cleanup: () => rmSync(root, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }),
   };
 }
 
