@@ -1,10 +1,12 @@
 name: macOS
 
 # The same checks as CI, on macOS: Intel (macos-15-intel) and Apple silicon (macos-15, arm64), on Node 22 and 24, plus the
-# newest macOS (macos-26, arm64) as a non-blocking extra. Not part of CI and not a required check: GitHub's macOS pools
-# are sometimes short of runners, and a job that never starts marked every push to main as failed. It runs on every pull
-# request, weekly and on demand, so macOS is attempted on every change and a gap shows up on the pull request instead of
-# going unseen. Before a release, run it by hand on the release commit (Actions tab, "Run workflow") and record the result,
+# newest macOS (macos-26, arm64) as a non-blocking extra. Not part of the push CI: GitHub's macOS pools are sometimes
+# short of runners, and a job that never starts marked every push to main as failed. It runs on every pull request,
+# weekly and on demand, so macOS is attempted on every change and a gap shows up on the pull request instead of going
+# unseen. The two Intel jobs ("macOS x64 (Node 22)" and "macOS x64 (Node 24)") are REQUIRED checks on pull requests in
+# the branch protection of main; the Apple-silicon jobs and macos-26 are not. If you rename those jobs, update the
+# required checks too, or pull requests will wait for a check that never appears. Before a release, run it by hand on the release commit (Actions tab, "Run workflow") and record the result,
 # or the gap, in the release notes (docs/releasing.md). A job cancelled with "not acquired by Runner of type hosted" is a
 # runner shortage, not a code failure: re-run it by hand later, never in a loop.
 # Checked on 2026-11-03: macos-14, macos-15 and macos-26 (arm64) and macos-15-intel each ran the whole suite and passed at
