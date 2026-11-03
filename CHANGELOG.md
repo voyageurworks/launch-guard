@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.2.1 - 2026-11-03
+
+No change to the tool. This is the first version published by GitHub Actions through npm trusted publishing, which also gives it a provenance statement; 0.2.0 was published by hand. The macOS test note under 0.2.0 still applies: macOS on Node 22 has not been run for 0.2.x.
+
 ## 0.2.0 - 2026-11-03
 
 **The package is now `@voyageurworks/launch-guard-pack`.** The command is still `launch-guard`, so scripts, hooks and the skill keep working; only the install name changes (`npx -y @voyageurworks/launch-guard-pack <repo>`). The earlier `@voyageurworks/launch-guard` (0.1.0 to 0.1.3) is deprecated in favour of it. The GitHub repository keeps its name.
