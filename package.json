@@ -1,7 +1,7 @@
 {
   "name": "@voyageurworks/launch-guard",
-  "version": "0.1.3",
-  "description": "Scan a private git repo before it goes public and report secrets, personal details, restricted terms and reachable old commits without printing private data.",
+  "version": "0.2.0",
+  "description": "Scan a private git repo or the npm package you are about to publish, and report secrets, personal details, restricted terms and reachable old commits without printing private data.",
   "license": "MIT",
   "repository": { "type": "git", "url": "git+https://github.com/voyageurworks/launch-guard.git" },
   "homepage": "https://github.com/voyageurworks/launch-guard#readme",

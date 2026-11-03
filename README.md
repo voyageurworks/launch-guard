@@ -83,6 +83,7 @@ npx -y @voyageurworks/launch-guard <repo>
 - `--json` prints the same report as one JSON document (`version`, `result`, `counts`, `findings`), with the same six fixed fields per finding and the same promise: no secret, no list value, no commit message. The exit code is the same, so `node skill/launch-guard.mjs . --json --offline > report.json` works in any script.
 - `--print-hook` prints a git `pre-push` hook to the screen. It writes nothing; you save it yourself as `.git/hooks/pre-push` (the tool never edits a repository) and put the path of `launch-guard.mjs` into it. Any blocking finding then stops the push.
 - `--fail-on warn` makes warnings fail the run too (exit code 1, `RESULT: FAIL`, `"result": "fail"` in `--json`). The default is `--fail-on block`. Expect a few warnings on most repositories (a missing SECURITY file, an extra ref), so use it where you want a strict gate.
+- `--explain <label>` prints what a report label means and what to do about it, for example `--explain "secret format"`. The text is the same as the table in "Reading the report" (a test fails if the two differ). An unknown label lists the known ones.
 - `--pack` scans the package `npm publish` would upload instead of the repository (see the section below). Run it as the step before `npm publish`.
 - [docs/ci.md](docs/ci.md) has a ready GitHub Actions job. A runner has no private list, so CI covers secrets, history, old commits and basics; the personal and restricted checks stay on your own machine.
 
@@ -94,7 +95,7 @@ A clean repository can still publish a leaky package, because what `npm publish`
 npx -y @voyageurworks/launch-guard . --pack --offline
 ```
 
-It runs `npm pack --ignore-scripts` into a fresh temporary folder, unpacks the tarball there with a small built-in reader (no links are created, no name may leave the folder, and the size and file count are capped), runs the secret scanner and your private list on **every file that would ship** (including `dist/` and bundled `node_modules/`), applies the package rules below, and deletes both temporary folders. Nothing is published, no lifecycle script runs, nothing is sent anywhere. The report is the same shape as before (text or `--json`, same exit codes) and the same promise holds: where and what kind, never the matched text. Paths are shown as they are inside the package.
+It runs `npm pack --ignore-scripts` into a fresh temporary folder (if your `package.json` defines `prepack`, `prepare`, `postpack`, `prepublish`, `prepublishOnly`, `publish` or `postpublish`, it packs a copy of the project with those scripts removed instead, because npm 10, the npm that ships with Node 22, still runs `prepare` during `npm pack --ignore-scripts`; your own files are never changed), unpacks the tarball there with a small built-in reader (no links are created, no name may leave the folder, and the size and file count are capped), runs the secret scanner and your private list on **every file that would ship** (including `dist/` and bundled `node_modules/`), applies the package rules below, and deletes both temporary folders. Nothing is published, no lifecycle script runs, nothing is sent anywhere. The report is the same shape as before (text or `--json`, same exit codes) and the same promise holds: where and what kind, never the matched text. Paths are shown as they are inside the package.
 
 A real run on a throwaway package (the key is fake) that has a `.claude` folder, a built file with a key and a source map:
 
@@ -133,7 +134,7 @@ Session files and instruction files inside a bundled `node_modules/` are not fla
 What it does not do:
 
 - **npm only.** It calls `npm pack`. pnpm and yarn workspaces are not treated specially, and a monorepo needs the path of each package.
-- **Scripts do not run.** If the files you publish are made by a `prepack` or `build` step, run that step first, or `dist/` will be missing and the report will not describe what you really ship.
+- **Scripts do not run.** If the files you publish are made by a `prepack` or `build` step, run that step first, or `dist/` will be missing and the report will not describe what you really ship. When scripts are removed from the packed copy, a `.git` folder, any `node_modules` folder (the top-level one is linked back so bundled dependencies still ship) and symbolic links are left out of that copy, which npm would leave out of the package as well.
 - **No comparison with the version on npm**, no network, and no check of what is already published.
 - **It checks names and structure plus the same line scanners.** A secret with no key word beside it is still invisible; files over 1 MiB are not read by the secret scanner (a "file skipped" note says so), though source maps are parsed up to 64 MiB.
 
@@ -160,7 +161,7 @@ restricted|zq-example-codeword
 
 ## The four checks
 
-1. **Secrets.** Known key formats and long random-looking strings next to words like key, token or password, in your current files. It follows a value that sits on a later line than its key (a YAML block, a continuation, or a string split with `+` or a backslash, over up to four lines), reads quoted values that contain symbols, and knows the formats of common providers (cloud, payment, chat and developer tokens) as well as `Authorization: Bearer` headers.
+1. **Secrets.** Known key formats and long random-looking strings next to words like key, token or password, in your current files. It follows a value that sits on a later line than its key (a YAML block, a continuation, or a string split with `+` or a backslash, over up to four lines), reads quoted values that contain symbols, and knows the formats of common providers (cloud, payment, chat and developer tokens) as well as `Authorization: Bearer` headers. It also reads credential lines that carry no key word: `.npmrc` `_authToken`, `_auth` and `_password` values (an `${NPM_TOKEN}` reference is fine), a Docker `config.json` `"auth"` that decodes to `user:password`, and a `Password=` inside a connection string next to `Server=`, `Host=` or `Database=`.
 2. **Personal details and restricted terms.** Everything in your private list, matched against file contents and against file and folder names.
 3. **History.** Every branch, tag and the reflog, checked for the same secrets and list entries in old versions of files, in commit messages, in annotated tag messages and taggers, in author names and emails, and in what a merge commit changed beyond an automatic merge (such as a secret typed in while resolving a conflict). The merge check needs git 2.36 or newer; on an older git it says "history incomplete".
 4. **Old commits still reachable.** Leftover rewrite refs, extra refs and hidden pull-request refs on your remotes that would still be downloadable after a history rewrite, plus local unreachable objects (a prompt to check, not proof of a leak).

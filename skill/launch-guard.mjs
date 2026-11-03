@@ -2,7 +2,7 @@
 
 // dist/cli.js
 import { execFileSync as execFileSync5 } from "node:child_process";
-import { existsSync as existsSync4, mkdirSync as mkdirSync3, readdirSync as readdirSync3, realpathSync as realpathSync2, statSync as statSync3, writeFileSync as writeFileSync2 } from "node:fs";
+import { existsSync as existsSync5, mkdirSync as mkdirSync4, readdirSync as readdirSync3, realpathSync as realpathSync3, statSync as statSync3, writeFileSync as writeFileSync3 } from "node:fs";
 import { basename as basename2, dirname as dirname2, join as join10, resolve as resolve3 } from "node:path";
 
 // dist/denylist.js
@@ -188,11 +188,118 @@ function listRepoFiles(root, neverOpen, options = {}) {
   return out;
 }
 
+// dist/explain.js
+var EXPLAIN = {
+  "secret format": "A string shaped like a known key or token\nWhat to do: Remove it from the file, then treat the key as exposed and replace it at its provider",
+  "secret near keyword": "A long random-looking value next to a word like key, token or password\nWhat to do: Check the line yourself; remove it, or mark it allowed if it is harmless (see below)",
+  "personal detail": "A `personal` entry from your list matches in a file\nWhat to do: Edit the line yourself",
+  "restricted term": "A `restricted` entry from your list matches in a file\nWhat to do: Edit the line yourself",
+  "path matches list": "A file or folder name matches your list (shown as `[redacted]`)\nWhat to do: Rename it",
+  "tracked env file": "A `.env` file is tracked by git (its contents are never read)\nWhat to do: Stop tracking it and keep it out of the repo; replace any secrets in it",
+  "list inside repo": "Your private list is inside the folder being scanned\nWhat to do: Move it out of the repo",
+  "secret in history": "A secret appears in an old version of a file\nWhat to do: See the note on history below",
+  "term in history": "A list entry appears in an old commit, message, author or ref name\nWhat to do: See the note on history below",
+  "history incomplete": "The tool could not look at part of the history\nWhat to do: Informational; the check for that part did not run",
+  "no commits": "The tool could not look at part of the history\nWhat to do: Informational; the check for that part did not run",
+  "recommend a fresh repository": "A rewrite leftover (`refs/original`) or a hidden pull-request ref on a remote would stay reachable\nWhat to do: Publish from a brand-new repository with no old history",
+  "extra ref": "A branch, tag or stash beyond the current branch\nWhat to do: Check whether it should be public",
+  "unreachable object": "Git still holds an object that no branch reaches. Staging, amending, rebasing and `git stash drop` all leave these until git cleans up. They are local and a push does not publish them\nWhat to do: A warn, not proof of a leak: check that nothing sensitive was in the file you changed. To clear them, run `git reflog expire --expire-unreachable=now --all`, then `git gc --prune=now` (`git gc --prune=now` alone only clears re-staged blobs and dropped stash entries, because the reflog still holds commits left by an amend or rebase)",
+  "not a repository root": "The folder is not the top level of a git repository (a plain folder, or a subfolder of another repository), so the history and old-commit checks did not run\nWhat to do: Run the tool on the repository's top folder",
+  "no remote": "The tool could not look at part of the history\nWhat to do: Informational; the check for that part did not run",
+  "remote not checked": "The hidden pull-request ref check did not run: `--offline` was given, or git could not reach the remote without a prompt. The tool never asks for a password, so a private HTTPS remote that needs credentials will often land here\nWhat to do: Run the tool from a shell where git already has credentials for that remote (without `--offline`). If the repository was ever pushed with sensitive content, treat it as needing a fresh repository",
+  "user profile path": "A file holds an absolute path into a user profile folder\nWhat to do: Replace it with a relative path or a placeholder",
+  "missing LICENSE": "A basics file is absent\nWhat to do: Add one",
+  "missing SECURITY": "A basics file is absent\nWhat to do: Add one",
+  "missing CI": "A basics file is absent\nWhat to do: Add one",
+  "funding file active": "A funding file is switched on\nWhat to do: Make sure that is what you want before going public",
+  "checks skipped: no private list": "The personal and restricted checks had nothing to use\nWhat to do: Create and fill in your list",
+  "private list has no entries": "The personal and restricted checks had nothing to use\nWhat to do: Create and fill in your list",
+  "file skipped": "A file was too large, binary, a symlink or unreadable, so it was not read\nWhat to do: Look at it yourself if it matters",
+  "more files skipped": "A file was too large, binary, a symlink or unreadable, so it was not read\nWhat to do: Look at it yourself if it matters",
+  "submodule not scanned": "The repository has submodules (another repository each). Their files and history are not part of this scan\nWhat to do: Run the tool inside each submodule before you publish",
+  "nested repository not scanned": "An untracked folder inside the repository is itself a git repository. Its files and history are not part of this scan, and a plain `git add` would not publish them\nWhat to do: Scan it on its own, or keep it out of the folder you publish",
+  "agent folder in package": "`--pack`: the tarball would contain an assistant folder, a `settings.local.json`, a session file or an instruction file\nWhat to do: Keep it out with a `files` list in `package.json` or an `.npmignore`, then pack again",
+  "agent file in package": "`--pack`: the tarball would contain an assistant folder, a `settings.local.json`, a session file or an instruction file\nWhat to do: Keep it out with a `files` list in `package.json` or an `.npmignore`, then pack again",
+  "env file in package": "`--pack`: the tarball would contain an `.env*` file, an `.npmrc` or a `.git` folder (contents are never read)\nWhat to do: Exclude it as above; treat anything secret in it as exposed",
+  ".npmrc in package": "`--pack`: the tarball would contain an `.env*` file, an `.npmrc` or a `.git` folder (contents are never read)\nWhat to do: Exclude it as above; treat anything secret in it as exposed",
+  "git data in package": "`--pack`: the tarball would contain an `.env*` file, an `.npmrc` or a `.git` folder (contents are never read)\nWhat to do: Exclude it as above; treat anything secret in it as exposed",
+  "private key file in package": "`--pack`: a key bundle or a `.pem`/`.key` file would ship\nWhat to do: Remove a private key and replace it; check that a certificate is meant to be public",
+  "key or certificate file in package": "`--pack`: a key bundle or a `.pem`/`.key` file would ship\nWhat to do: Remove a private key and replace it; check that a certificate is meant to be public",
+  "source map with sources": "`--pack`: a `.map` file would ship with your source text inside, or is not valid JSON\nWhat to do: Turn off `sourcesContent` or do not publish maps",
+  "source map in package": "`--pack`: a `.map` file would ship with your source text inside, or is not valid JSON\nWhat to do: Turn off `sourcesContent` or do not publish maps",
+  "no files list in package": "`--pack`: `package.json` has no `files` list and the source folder has no `.npmignore`\nWhat to do: Add a `files` list so only what you name ships",
+  "install script in package": "`--pack`: an `install`, `preinstall` or `postinstall` script runs on every consumer's machine\nWhat to do: Check that you mean it",
+  "unsafe path in package": "`--pack`: the tarball held a link (not created) or a name that could leave the folder (not written)\nWhat to do: Look at how the package is built",
+  "link in package": "`--pack`: the tarball held a link (not created) or a name that could leave the folder (not written)\nWhat to do: Look at how the package is built",
+  "packed without running scripts": "`--pack` notes: scripts did not run, git history is not in a package, and how many files and bytes would ship\nWhat to do: Informational",
+  "package contents": "`--pack` notes: scripts did not run, git history is not in a package, and how many files and bytes would ship\nWhat to do: Informational",
+  "history not part of a package": "`--pack` notes: scripts did not run, git history is not in a package, and how many files and bytes would ship\nWhat to do: Informational"
+};
+function explainLabel(label) {
+  return Object.prototype.hasOwnProperty.call(EXPLAIN, label) ? EXPLAIN[label] : null;
+}
+
 // dist/pack/build.js
 import { spawnSync } from "node:child_process";
-import { readdirSync as readdirSync2, statSync } from "node:fs";
+import { copyFileSync, existsSync as existsSync2, lstatSync as lstatSync2, mkdirSync, mkdtempSync, readFileSync as readFileSync2, readdirSync as readdirSync2, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join as join3 } from "node:path";
 var NPM_PACK_TIMEOUT_MS = 12e4;
+var PACK_SCRIPTS = ["prepublish", "prepublishOnly", "prepack", "prepare", "postpack", "publish", "postpublish"];
+var COPY_MAX_FILES = 5e4;
+var COPY_MAX_BYTES = 256 * 1024 * 1024;
+function readManifest(cwd) {
+  try {
+    const parsed = JSON.parse(readFileSync2(join3(cwd, "package.json"), "utf8"));
+    return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+function definesPackScripts(manifest) {
+  const scripts = manifest.scripts;
+  return typeof scripts === "object" && scripts !== null && PACK_SCRIPTS.some((k) => k in scripts);
+}
+function copySanitized(src, dst, manifest) {
+  let files = 0;
+  let bytes = 0;
+  const walk = (rel) => {
+    for (const entry of readdirSync2(join3(src, rel), { withFileTypes: true })) {
+      if (entry.name === ".git" || entry.name === "node_modules")
+        continue;
+      const path = rel ? `${rel}/${entry.name}` : entry.name;
+      const st = lstatSync2(join3(src, path));
+      if (st.isSymbolicLink())
+        continue;
+      if (st.isDirectory()) {
+        mkdirSync(join3(dst, path));
+        if (!walk(path))
+          return false;
+      } else if (st.isFile()) {
+        files++;
+        bytes += st.size;
+        if (files > COPY_MAX_FILES || bytes > COPY_MAX_BYTES)
+          return false;
+        copyFileSync(join3(src, path), join3(dst, path));
+      }
+    }
+    return true;
+  };
+  if (!walk(""))
+    return false;
+  const scripts = { ...manifest.scripts };
+  for (const key of PACK_SCRIPTS)
+    delete scripts[key];
+  writeFileSync(join3(dst, "package.json"), JSON.stringify({ ...manifest, scripts }, null, 2) + "\n");
+  const modules = join3(src, "node_modules");
+  if (existsSync2(modules)) {
+    try {
+      symlinkSync(realpathSync(modules), join3(dst, "node_modules"), "junction");
+    } catch {
+    }
+  }
+  return true;
+}
 function runNpmPack(cwd, destDir, timeoutMs = NPM_PACK_TIMEOUT_MS) {
   try {
     if (!statSync(cwd).isDirectory())
@@ -202,6 +309,27 @@ function runNpmPack(cwd, destDir, timeoutMs = NPM_PACK_TIMEOUT_MS) {
   } catch {
     return null;
   }
+  const manifest = readManifest(cwd);
+  if (manifest === null)
+    return null;
+  let copy = null;
+  try {
+    let packCwd = cwd;
+    if (definesPackScripts(manifest)) {
+      copy = mkdtempSync(join3(tmpdir(), "lg-packsrc-"));
+      if (!copySanitized(cwd, copy, manifest))
+        return null;
+      packCwd = copy;
+    }
+    return spawnPack(packCwd, destDir, timeoutMs);
+  } catch {
+    return null;
+  } finally {
+    if (copy !== null)
+      rmSync(copy, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+  }
+}
+function spawnPack(cwd, destDir, timeoutMs) {
   const args = ["pack", "--ignore-scripts", "--pack-destination", destDir];
   const windows = process.platform === "win32";
   const command = windows ? process.env.ComSpec ?? "cmd.exe" : "npm";
@@ -231,13 +359,13 @@ function runNpmPack(cwd, destDir, timeoutMs = NPM_PACK_TIMEOUT_MS) {
 }
 
 // dist/pack/run.js
-import { lstatSync as lstatSync2, mkdirSync as mkdirSync2, mkdtempSync, readFileSync as readFileSync4, rmSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { lstatSync as lstatSync3, mkdirSync as mkdirSync3, mkdtempSync as mkdtempSync2, readFileSync as readFileSync5, rmSync as rmSync2 } from "node:fs";
+import { tmpdir as tmpdir2 } from "node:os";
 import { join as join7 } from "node:path";
 
 // dist/scan/basics.js
 import { execFileSync as execFileSync2 } from "node:child_process";
-import { existsSync as existsSync2, readFileSync as readFileSync2 } from "node:fs";
+import { existsSync as existsSync3, readFileSync as readFileSync3 } from "node:fs";
 import { join as join4 } from "node:path";
 
 // dist/allow.js
@@ -321,7 +449,7 @@ function hasNestedRepo(root) {
       timeout: GIT_QUICK_TIMEOUT_MS,
       stdio: ["ignore", "pipe", "ignore"]
     });
-    return untracked.split("\0").some((p) => p.endsWith("/") && existsSync2(join4(root, p, ".git")));
+    return untracked.split("\0").some((p) => p.endsWith("/") && existsSync3(join4(root, p, ".git")));
   } catch {
     return false;
   }
@@ -353,7 +481,7 @@ function scanAiFiles(root, entries, files) {
       continue;
     let text;
     try {
-      text = readFileSync2(join4(root, f.path), "utf8");
+      text = readFileSync3(join4(root, f.path), "utf8");
     } catch {
       continue;
     }
@@ -396,7 +524,7 @@ function scanRepoBasics(root, files, lower) {
   const funding = files.find((f) => !f.skipped && /^\.github\/funding\.ya?ml$/i.test(f.path));
   if (funding) {
     try {
-      const lines2 = readFileSync2(join4(root, funding.path), "utf8").split(/\r?\n/);
+      const lines2 = readFileSync3(join4(root, funding.path), "utf8").split(/\r?\n/);
       const first = lines2.findIndex((l) => l.trim() !== "" && !l.trim().startsWith("#"));
       if (first >= 0) {
         findings.push({
@@ -415,7 +543,7 @@ function scanRepoBasics(root, files, lower) {
 }
 
 // dist/scan/pack.js
-import { existsSync as existsSync3, readFileSync as readFileSync3, statSync as statSync2 } from "node:fs";
+import { existsSync as existsSync4, readFileSync as readFileSync4, statSync as statSync2 } from "node:fs";
 import { join as join5 } from "node:path";
 var AGENT_DIRS = /* @__PURE__ */ new Set([".claude", ".codex", ".cursor", ".gemini", ".windsurf"]);
 var SSH_KEY = /^id_(?:rsa|dsa|ecdsa|ed25519)$/;
@@ -431,7 +559,7 @@ function holdsPrivateKey(full) {
   try {
     if (statSync2(full).size > MAX_KEY_BYTES)
       return false;
-    return readFileSync3(full, "utf8").includes("PRIVATE KEY");
+    return readFileSync4(full, "utf8").includes("PRIVATE KEY");
   } catch {
     return false;
   }
@@ -440,7 +568,7 @@ function mapEmbedsSources(full) {
   try {
     if (statSync2(full).size > MAX_MAP_BYTES)
       return null;
-    const parsed = JSON.parse(readFileSync3(full, "utf8"));
+    const parsed = JSON.parse(readFileSync4(full, "utf8"));
     if (typeof parsed !== "object" || parsed === null)
       return null;
     const content = parsed.sourcesContent;
@@ -489,7 +617,7 @@ function scanPackageFiles(root, files) {
 function scanPackageManifest(root, sourceRoot) {
   let manifest;
   try {
-    const parsed = JSON.parse(readFileSync3(join5(root, "package.json"), "utf8"));
+    const parsed = JSON.parse(readFileSync4(join5(root, "package.json"), "utf8"));
     if (typeof parsed !== "object" || parsed === null || Array.isArray(parsed))
       return [];
     manifest = parsed;
@@ -497,7 +625,7 @@ function scanPackageManifest(root, sourceRoot) {
     return [];
   }
   const findings = [];
-  if (!Array.isArray(manifest.files) && !existsSync3(join5(sourceRoot, ".npmignore"))) {
+  if (!Array.isArray(manifest.files) && !existsSync4(join5(sourceRoot, ".npmignore"))) {
     findings.push(make("warn", "package.json", "no files list in package"));
   }
   const scripts = manifest.scripts;
@@ -529,7 +657,7 @@ function skippedNotes(files, entries) {
 }
 
 // dist/pack/tar.js
-import { mkdirSync, writeFileSync } from "node:fs";
+import { mkdirSync as mkdirSync2, writeFileSync as writeFileSync2 } from "node:fs";
 import { dirname, join as join6, resolve, sep } from "node:path";
 import { gunzipSync } from "node:zlib";
 var TarError = class extends Error {
@@ -694,8 +822,8 @@ function extractTarball(tgz, dest, options = {}) {
       continue;
     }
     try {
-      mkdirSync(dirname(target), { recursive: true });
-      writeFileSync(target, body);
+      mkdirSync2(dirname(target), { recursive: true });
+      writeFileSync2(target, body);
     } catch {
       unsafe++;
       continue;
@@ -717,18 +845,18 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MiB`;
 }
 function scanPackage(sourceRoot, entries, deps) {
-  const work = mkdtempSync(join7(tmpdir(), "lg-pack-"));
+  const work = mkdtempSync2(join7(tmpdir2(), "lg-pack-"));
   try {
     const tgzDir = join7(work, "tgz");
     const pkgDir = join7(work, "pkg");
-    mkdirSync2(tgzDir);
-    mkdirSync2(pkgDir);
+    mkdirSync3(tgzDir);
+    mkdirSync3(pkgDir);
     const tgzPath = deps.pack(sourceRoot, tgzDir);
     if (tgzPath === null)
       return { ok: false, reason: "build" };
     let extracted;
     try {
-      extracted = extractTarball(readFileSync4(tgzPath), pkgDir);
+      extracted = extractTarball(readFileSync5(tgzPath), pkgDir);
     } catch (err) {
       if (err instanceof TarError)
         return { ok: false, reason: "read" };
@@ -750,7 +878,7 @@ function scanPackage(sourceRoot, entries, deps) {
     let bytes = 0;
     for (const f of extracted.files) {
       try {
-        bytes += lstatSync2(join7(pkgDir, ...f.split("/"))).size;
+        bytes += lstatSync3(join7(pkgDir, ...f.split("/"))).size;
       } catch {
       }
     }
@@ -759,7 +887,7 @@ function scanPackage(sourceRoot, entries, deps) {
     found.push(note("info", `${extracted.files.length} files, ${formatSize(bytes)} unpacked`, "package contents"));
     return { ok: true, findings: found };
   } finally {
-    rmSync(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
+    rmSync2(work, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 });
   }
 }
 
@@ -807,7 +935,7 @@ import { execFileSync as execFileSync3 } from "node:child_process";
 import { randomBytes } from "node:crypto";
 
 // dist/scan/secrets.js
-import { readFileSync as readFileSync5 } from "node:fs";
+import { readFileSync as readFileSync6 } from "node:fs";
 import { join as join8 } from "node:path";
 var ENTROPY_THRESHOLD = 3.5;
 var MIN_VALUE_LENGTH = 20;
@@ -862,9 +990,55 @@ var KNOWN_FORMATS = [
   // DigitalOcean tokens
   /\bshp(?:at|ca|pa|ss)_[a-f0-9]{32}\b/,
   // Shopify tokens
-  /\bAccountKey=[A-Za-z0-9+/]{40,}={0,2}/
+  /\bAccountKey=[A-Za-z0-9+/]{40,}={0,2}/,
   // Azure storage connection strings
+  /\bpypi-AgEIcHlwaS5vcmc[A-Za-z0-9_-]{50,}/,
+  // PyPI upload tokens
+  /\bdckr_pat_[A-Za-z0-9_-]{20,}/,
+  // Docker personal access tokens
+  /\bdapi[a-f0-9]{32}\b/,
+  // Databricks personal access tokens
+  /\blin_api_[A-Za-z0-9]{40}\b/,
+  // Linear API keys
+  /\bglsa_[A-Za-z0-9]{32}_[a-f0-9]{8}\b/,
+  // Grafana service account tokens
+  /\bPMAK-[a-f0-9]{24}-[a-f0-9]{34}\b/,
+  // Postman API keys
+  /\boy2[a-z2-7]{43}\b/
+  // NuGet API keys
 ];
+var CREDENTIAL_PLACEHOLDERS = /* @__PURE__ */ new Set(["password", "passwd", "pass", "secret", "token", "changeme", "example", "your-token-here", "redacted"]);
+var TEMPLATE_VALUE = /^(?:\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|\{[^{}]*\}|<[^<>]*>|%[^%]+%|\*+|x{3,})$/i;
+function isTemplateOrPlaceholder(value) {
+  const v = value.trim();
+  return v === "" || TEMPLATE_VALUE.test(v) || PLACEHOLDER.test(v) || CREDENTIAL_PLACEHOLDERS.has(v.toLowerCase());
+}
+var NPMRC_CREDENTIAL = /(?<![A-Za-z0-9])_(?:authToken|auth|password)\s{0,10}=\s{0,10}["']?([^\s"']+)/gi;
+var NPMRC_MIN_VALUE = 8;
+var DOCKER_AUTH = /"auth"\s{0,10}:\s{0,10}"([A-Za-z0-9+/]{12,}={0,2})"/g;
+var CONNECTION_CONTEXT = /\b(?:server|data source|host|hostname|addr|address|initial catalog|database|databasename)\s{0,5}=/i;
+var CONNECTION_PASSWORD = /\b(?:password|pwd)\s{0,5}=\s{0,5}([^;"'\s]{6,})/gi;
+function hasCredentialConfig(line) {
+  for (const m of line.matchAll(NPMRC_CREDENTIAL)) {
+    if (m[1].length >= NPMRC_MIN_VALUE && !isTemplateOrPlaceholder(m[1]))
+      return true;
+  }
+  for (const m of line.matchAll(DOCKER_AUTH)) {
+    const decoded = Buffer.from(m[1], "base64").toString("utf8");
+    const colon = decoded.indexOf(":");
+    if (colon <= 0 || /[\u0000-\u0008\u000e-\u001f]/.test(decoded))
+      continue;
+    const password = decoded.slice(colon + 1);
+    if (password.length >= 4 && !isTemplateOrPlaceholder(password))
+      return true;
+  }
+  if (CONNECTION_CONTEXT.test(line)) {
+    for (const m of line.matchAll(CONNECTION_PASSWORD))
+      if (!isTemplateOrPlaceholder(m[1]))
+        return true;
+  }
+  return false;
+}
 var AUTH_HEADER = /\b(?:bearer|basic)\s+([A-Za-z0-9._~+/=-]{24,})/gi;
 var RFC_BASIC_SAMPLE = "QWxhZGRpbjpvcGVuIHNlc2FtZQ==";
 var URL_CREDENTIALS = /(?<![A-Za-z0-9+.-])[A-Za-z][A-Za-z0-9+.-]*:\/\/([^\s:/@]+):([^\s@/]{4,})@/g;
@@ -951,7 +1125,7 @@ function keywordValueIsSecret(text) {
   return false;
 }
 function classifyLine(line) {
-  if (KNOWN_FORMATS.some((re) => re.test(line)) || hasUrlCredentials(line))
+  if (KNOWN_FORMATS.some((re) => re.test(line)) || hasUrlCredentials(line) || hasCredentialConfig(line))
     return "secret format";
   return keywordValueIsSecret(line) ? "secret near keyword" : null;
 }
@@ -1058,7 +1232,7 @@ function scanSecrets(root, entries = [], listing) {
       continue;
     let text;
     try {
-      text = readFileSync5(join8(root, f.path), "utf8");
+      text = readFileSync6(join8(root, f.path), "utf8");
     } catch {
       continue;
     }
@@ -1083,11 +1257,11 @@ function scanSecrets(root, entries = [], listing) {
 }
 
 // dist/scan/terms.js
-import { readFileSync as readFileSync6, realpathSync } from "node:fs";
+import { readFileSync as readFileSync7, realpathSync as realpathSync2 } from "node:fs";
 import { isAbsolute, join as join9, relative, resolve as resolve2 } from "node:path";
 function real(p) {
   try {
-    return realpathSync(p);
+    return realpathSync2(p);
   } catch {
     return resolve2(p);
   }
@@ -1139,7 +1313,7 @@ function scanTerms(root, entries, listFile, listing) {
       continue;
     let text;
     try {
-      text = readFileSync6(join9(root, f.path), "utf8").normalize("NFC");
+      text = readFileSync7(join9(root, f.path), "utf8").normalize("NFC");
     } catch {
       continue;
     }
@@ -1585,7 +1759,7 @@ var REAL = {
   pack: runNpmPack
 };
 var USAGE = [
-  "Usage: launch-guard [path] [--list <file>] [--offline] [--json] [--pack] [--fail-on <block|warn>] [--init-list [file]] [--print-hook] [--help]",
+  "Usage: launch-guard [path] [--list <file>] [--offline] [--json] [--pack] [--fail-on <block|warn>] [--init-list [file]] [--print-hook] [--explain <label>] [--help]",
   "",
   "Scans a git repository before it goes public and reports secrets, personal",
   "details, restricted terms and reachable old commits. It does not print a secret,",
@@ -1609,12 +1783,18 @@ var USAGE = [
   "                write a template private list (comment lines only) for you to fill in with",
   "                your own editor; refuses to overwrite a file or to write inside a git repo",
   "  --print-hook  print a git pre-push hook script to the screen; it writes nothing, you save it yourself",
+  "  --explain <label>",
+  "                print what a report label means and what to do about it (the label is the text in a finding,",
+  '                for example "secret format"); an unknown label lists the known ones',
   "  --help        show this text",
   "",
   "Exit codes: 0 no blocking findings, 1 at least one blocking finding, 2 usage or setup problem.",
   ""
 ].join("\n");
-var HINT = "Usage: launch-guard [path] [--list <file>] [--offline] [--json] [--pack] [--fail-on <block|warn>] [--init-list [file]] [--print-hook] [--help]\n";
+var HINT = "Usage: launch-guard [path] [--list <file>] [--offline] [--json] [--pack] [--fail-on <block|warn>] [--init-list [file]] [--print-hook] [--explain <label>] [--help]\n";
+var FAIL_LABEL = `launch-guard: unknown label. Known labels:
+${Object.keys(EXPLAIN).map((l) => `  ${l}`).join("\n")}
+`;
 var FAIL_PATH = "launch-guard: the target path is not a readable directory.\n";
 var FAIL_PACK_BUILD = "launch-guard: the package could not be built.\n";
 var FAIL_PACK_READ = "launch-guard: the package could not be read.\n";
@@ -1654,6 +1834,7 @@ function parseArgs(argv) {
   let hook = false;
   let pack = false;
   let failOn = null;
+  let explain = null;
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--help" || a === "-h")
@@ -1668,6 +1849,13 @@ function parseArgs(argv) {
       if (json)
         return null;
       json = true;
+      continue;
+    }
+    if (a === "--explain") {
+      const v = argv[++i];
+      if (explain !== null || v === void 0 || v === "")
+        return null;
+      explain = v;
       continue;
     }
     if (a === "--fail-on") {
@@ -1713,16 +1901,18 @@ function parseArgs(argv) {
     }
   }
   if (hook) {
-    return init !== void 0 || path !== null || list !== null || offline || json || pack || failOn !== null ? null : { help: false, hook: true };
+    return init !== void 0 || path !== null || list !== null || offline || json || pack || failOn !== null || explain !== null ? null : { help: false, hook: true };
   }
-  if (init !== void 0 && (path !== null || list !== null || offline || json || pack || failOn !== null))
+  if (init !== void 0 && (path !== null || list !== null || offline || json || pack || failOn !== null || explain !== null))
     return null;
-  return { help: false, hook: false, init, path: path ?? ".", list, offline, json, pack, failOn: failOn ?? "block" };
+  if (explain !== null && (path !== null || list !== null || offline || json || pack || failOn !== null))
+    return null;
+  return { help: false, hook: false, init, path: path ?? ".", list, offline, json, pack, failOn: failOn ?? "block", explain };
 }
 function insideGitRepo(p) {
   let dir = dirname2(resolve3(p));
   for (; ; ) {
-    if (existsSync4(join10(dir, ".git")))
+    if (existsSync5(join10(dir, ".git")))
       return true;
     const up = dirname2(dir);
     if (up === dir)
@@ -1732,7 +1922,7 @@ function insideGitRepo(p) {
 }
 function initList(target, io) {
   const file = resolve3(target);
-  if (existsSync4(file)) {
+  if (existsSync5(file)) {
     io.err(FAIL_EXISTS);
     return 2;
   }
@@ -1741,8 +1931,8 @@ function initList(target, io) {
     return 2;
   }
   try {
-    mkdirSync3(dirname2(file), { recursive: true });
-    writeFileSync2(file, TEMPLATE, { flag: "wx" });
+    mkdirSync4(dirname2(file), { recursive: true });
+    writeFileSync3(file, TEMPLATE, { flag: "wx" });
   } catch {
     io.err(FAIL_INIT);
     return 2;
@@ -1769,7 +1959,7 @@ function isRepoRoot(root) {
     if (top === "")
       return false;
     const norm = (p) => {
-      const r = resolve3(realpathSync2.native(p));
+      const r = resolve3(realpathSync3.native(p));
       return process.platform === "win32" ? r.toLowerCase() : r;
     };
     return norm(top) === norm(root);
@@ -1815,6 +2005,16 @@ async function run(argv, io, scanners) {
     io.out(HOOK);
     return 0;
   }
+  if (args.explain !== null) {
+    const text = explainLabel(args.explain);
+    if (text === null) {
+      io.err(FAIL_LABEL);
+      return 2;
+    }
+    io.out(`${text}
+`);
+    return 0;
+  }
   if (args.init !== void 0)
     return initList(args.init ?? defaultDenyListPath(), io);
   const root = resolve3(args.path);
@@ -1827,7 +2027,7 @@ async function run(argv, io, scanners) {
   let listFile;
   const explicit = args.list !== null;
   const file = explicit ? resolve3(args.list) : defaultDenyListPath();
-  if (explicit || existsSync4(file)) {
+  if (explicit || existsSync5(file)) {
     const loaded = loadDenyList(file);
     if (loaded.problem !== null) {
       io.err(FAIL_LIST);

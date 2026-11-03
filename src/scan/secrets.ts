@@ -45,7 +45,56 @@ const KNOWN_FORMATS: RegExp[] = [
   /\bdop_v1_[a-f0-9]{64}\b/, // DigitalOcean tokens
   /\bshp(?:at|ca|pa|ss)_[a-f0-9]{32}\b/, // Shopify tokens
   /\bAccountKey=[A-Za-z0-9+/]{40,}={0,2}/, // Azure storage connection strings
+  /\bpypi-AgEIcHlwaS5vcmc[A-Za-z0-9_-]{50,}/, // PyPI upload tokens
+  /\bdckr_pat_[A-Za-z0-9_-]{20,}/, // Docker personal access tokens
+  /\bdapi[a-f0-9]{32}\b/, // Databricks personal access tokens
+  /\blin_api_[A-Za-z0-9]{40}\b/, // Linear API keys
+  /\bglsa_[A-Za-z0-9]{32}_[a-f0-9]{8}\b/, // Grafana service account tokens
+  /\bPMAK-[a-f0-9]{24}-[a-f0-9]{34}\b/, // Postman API keys
+  /\boy2[a-z2-7]{43}\b/, // NuGet API keys
 ];
+
+/** Words that make a credential a template or an example rather than a real value. */
+const CREDENTIAL_PLACEHOLDERS = new Set(["password", "passwd", "pass", "secret", "token", "changeme", "example", "your-token-here", "redacted"]);
+const TEMPLATE_VALUE = /^(?:\$\{?[A-Za-z_][A-Za-z0-9_]*\}?|\{[^{}]*\}|<[^<>]*>|%[^%]+%|\*+|x{3,})$/i;
+
+/** True for a value that is a variable reference, a template slot or an obvious placeholder, not a literal credential. */
+function isTemplateOrPlaceholder(value: string): boolean {
+  const v = value.trim();
+  return v === "" || TEMPLATE_VALUE.test(v) || PLACEHOLDER.test(v) || CREDENTIAL_PLACEHOLDERS.has(v.toLowerCase());
+}
+
+/**
+ * `.npmrc` credential lines: `//registry/:_authToken=...`, `_auth=...`, `_password=...`. The underscore must start the
+ * name, so `my_authToken` is not matched. Group 1 is the value, which must be a literal, not `${NPM_TOKEN}`.
+ */
+const NPMRC_CREDENTIAL = /(?<![A-Za-z0-9])_(?:authToken|auth|password)\s{0,10}=\s{0,10}["']?([^\s"']+)/gi;
+const NPMRC_MIN_VALUE = 8;
+
+/** Docker `config.json` `"auth": "<base64 of user:password>"`. Group 1 is the base64 text. */
+const DOCKER_AUTH = /"auth"\s{0,10}:\s{0,10}"([A-Za-z0-9+/]{12,}={0,2})"/g;
+
+/** An ADO.NET / JDBC style connection string: a host-like field and a password field on the same line. */
+const CONNECTION_CONTEXT = /\b(?:server|data source|host|hostname|addr|address|initial catalog|database|databasename)\s{0,5}=/i;
+const CONNECTION_PASSWORD = /\b(?:password|pwd)\s{0,5}=\s{0,5}([^;"'\s]{6,})/gi;
+
+/** True when the line holds an `.npmrc` credential, a Docker auth entry or a connection-string password with a literal value. No text is returned. */
+function hasCredentialConfig(line: string): boolean {
+  for (const m of line.matchAll(NPMRC_CREDENTIAL)) {
+    if (m[1]!.length >= NPMRC_MIN_VALUE && !isTemplateOrPlaceholder(m[1]!)) return true;
+  }
+  for (const m of line.matchAll(DOCKER_AUTH)) {
+    const decoded = Buffer.from(m[1]!, "base64").toString("utf8");
+    const colon = decoded.indexOf(":");
+    if (colon <= 0 || /[\u0000-\u0008\u000e-\u001f]/.test(decoded)) continue;
+    const password = decoded.slice(colon + 1);
+    if (password.length >= 4 && !isTemplateOrPlaceholder(password)) return true;
+  }
+  if (CONNECTION_CONTEXT.test(line)) {
+    for (const m of line.matchAll(CONNECTION_PASSWORD)) if (!isTemplateOrPlaceholder(m[1]!)) return true;
+  }
+  return false;
+}
 
 /** `Authorization: Bearer <token>` or `Basic <base64>`; group 1 is the credential. Judged like a keyword value. */
 const AUTH_HEADER = /\b(?:bearer|basic)\s+([A-Za-z0-9._~+/=-]{24,})/gi;
@@ -135,7 +184,7 @@ function keywordValueIsSecret(text: string): boolean {
  * on a later line than its key is handled by `StatementTracker`, which wraps this.
  */
 export function classifyLine(line: string): Label | null {
-  if (KNOWN_FORMATS.some((re) => re.test(line)) || hasUrlCredentials(line)) return "secret format";
+  if (KNOWN_FORMATS.some((re) => re.test(line)) || hasUrlCredentials(line) || hasCredentialConfig(line)) return "secret format";
   return keywordValueIsSecret(line) ? "secret near keyword" : null;
 }
 
