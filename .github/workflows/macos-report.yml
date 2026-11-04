@@ -1,0 +1,40 @@
+name: macOS monthly report
+
+# On the 1st of every month, summarizes what really happened in the macOS workflow over the last 30 days (jobs passed, failed,
+# no runner; runs where macOS was NOT verified) and posts it as a comment on the open "macOS CI:" tracking issue, with a status
+# (QUIET, WATCH or NEEDS ATTENTION) and a recommendation. Facts only: counts, job names and run links. Logic and tests:
+# scripts/macos-report.mjs, src/macosReport.test.ts. Run it by hand from the Actions tab to try it; untick "post" to only
+# print the report in the log. GitHub turns scheduled workflows off after 60 days without repository activity; the report
+# says so when it sees no macOS runs.
+on:
+  schedule:
+    - cron: "7 12 1 * *"
+  workflow_dispatch:
+    inputs:
+      post:
+        description: Post the report as a comment on the tracking issue
+        type: boolean
+        default: true
+
+permissions:
+  actions: read
+  issues: write
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+      - name: Summarize the macOS runs and post the report
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          WORKFLOW: macos.yml
+          POST: ${{ github.event_name == 'workflow_dispatch' && inputs.post || 'true' }}
+        run: node scripts/macos-report.mjs
