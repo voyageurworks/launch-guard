@@ -28,14 +28,18 @@ export function decide(allJobs, selfName = SELF) {
   const jobs = allJobs.filter((j) => j.name !== selfName);
   const passed = jobs.filter((j) => j.conclusion === "success");
   const failed = jobs.filter((j) => j.conclusion === "failure");
-  const notRun = jobs.filter((j) => j.conclusion !== "success" && j.conclusion !== "failure");
+  // A job the workflow skipped on purpose (a conditional job such as "only on a tag") is not a gap; cancelled or unfinished
+  // jobs are (no runner was assigned).
+  const skipped = jobs.filter((j) => j.conclusion === "skipped");
+  const notRun = jobs.filter((j) => j.conclusion !== "success" && j.conclusion !== "failure" && j.conclusion !== "skipped");
 
   const lines = [
     "### macOS result",
     "",
     `- Passed on macOS: ${list(passed)}`,
     `- **Failed** on macOS: ${list(failed)}`,
-    `- Not run (no runner was assigned, or the job was cancelled or skipped): ${list(notRun)}`,
+    `- Not run (no runner was assigned, or the job was cancelled): ${list(notRun)}`,
+    ...(skipped.length > 0 ? [`- Skipped on purpose (a conditional job): ${list(skipped)}`] : []),
     "",
   ];
 
@@ -67,7 +71,7 @@ export function decide(allJobs, selfName = SELF) {
       summary: [...lines, "macOS passed where it ran. The jobs listed as not run have no result for this commit."].join("\n"),
     };
   }
-  return { code: 0, level: "none", title: "macOS passed", summary: [...lines, "Every macOS job passed."].join("\n") };
+  return { code: 0, level: "none", title: "macOS passed", summary: [...lines, "Every macOS job that ran passed."].join("\n") };
 }
 
 /** Prints GitHub annotations and the job summary, and returns the exit code. */
