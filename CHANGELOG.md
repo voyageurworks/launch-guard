@@ -1,6 +1,10 @@
 # Changelog
 
-## Unreleased
+## 0.2.3 - 2026-11-04
+
+No change to the tool itself: this release brings the packaged README and CHANGELOG up to date with the repository (macOS testing, release steps) and adds a monthly macOS report.
+
+A new `macOS monthly report` workflow runs on the 1st of each month and posts the facts (macOS jobs passed, failed or without a runner, and any run where macOS was not verified) as a comment on the macOS tracking issue, with a status (QUIET, WATCH, NEEDS ATTENTION) and a recommendation. A recommendation to close the issue needs runs spanning 60 days.
 
 No change to the tool. The required macOS check is now one job, `macOS result`, that runs on an ordinary Linux runner and decides from what the macOS jobs did: a macOS job that ran and failed blocks the merge; if GitHub assigned no Mac, the check passes with a visible warning that macOS was not verified, so a runner shortage no longer forces an administrator override. Every macOS job also runs a real-user smoke test (packs the project, installs the tarball and runs the installed command), so a green macOS means the tool works on a Mac.
 

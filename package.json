@@ -1,6 +1,6 @@
 {
   "name": "@voyageurworks/launch-guard-pack",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "Scan a private git repo or the npm package you are about to publish, and report secrets, personal details, restricted terms and reachable old commits without printing private data.",
   "license": "MIT",
   "repository": { "type": "git", "url": "git+https://github.com/voyageurworks/launch-guard-pack.git" },
