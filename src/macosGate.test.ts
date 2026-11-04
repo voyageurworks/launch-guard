@@ -28,9 +28,23 @@ describe("macOS result gate: decide", () => {
     expect(r.summary).toMatch(/not verified on macOS/i);
   });
 
-  it("treats skipped and unfinished jobs as not run", () => {
+  it("treats skipped and unfinished jobs as not run when nothing passed", () => {
     expect(decide([job("macOS x64 (Node 22)", "skipped")]).level).toBe("warning");
     expect(decide([job("macOS x64 (Node 22)", null)]).level).toBe("warning");
+  });
+
+  it("does not raise a notice for a job that is skipped on purpose (a conditional job) when everything that ran passed", () => {
+    const r = decide([job("macOS x64 (Node 22)", "success"), job("macOS x64 (Node 24)", "skipped")]);
+    expect(r.code).toBe(0);
+    expect(r.level).toBe("none");
+    expect(r.title).toBe("macOS passed");
+    expect(r.summary).toMatch(/skipped on purpose/i);
+    expect(r.summary).toContain("macOS x64 (Node 24)");
+  });
+
+  it("still fails on a real failure next to a skipped job, and still notices a cancelled job next to a skipped one", () => {
+    expect(decide([job("a", "failure"), job("b", "skipped")]).code).toBe(1);
+    expect(decide([job("a", "success"), job("b", "cancelled"), job("c", "skipped")]).level).toBe("notice");
   });
 
   it("passes with a notice and names what was not run when some ran and passed and others were cancelled", () => {
