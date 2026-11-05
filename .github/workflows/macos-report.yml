@@ -3,28 +3,33 @@ name: macOS monthly report
 # On the 1st of every month, summarizes what really happened in the macOS workflow over the last 30 days (jobs passed, failed,
 # no runner; runs where macOS was NOT verified) and posts it as a comment on the open "macOS CI:" tracking issue, with a status
 # (QUIET, WATCH or NEEDS ATTENTION) and a recommendation. Facts only: counts, job names and run links. Logic and tests:
-# scripts/macos-report.mjs, src/macosReport.test.ts. Run it by hand from the Actions tab to try it; untick "post" to only
-# print the report in the log. GitHub turns scheduled workflows off after 60 days without repository activity; the report
-# says so when it sees no macOS runs.
+# scripts/macos-report.mjs, src/macosReport.test.ts. It also writes the same facts as a tiny JSON file (fixed words and numbers
+# only) to the `macos-report` branch, status.json, which an automatic monthly reviewer reads without calling the GitHub API;
+# only this workflow writes that branch. Run it by hand from the Actions tab to try it; untick "post" to only print the report
+# in the log. GitHub turns scheduled workflows off after 60 days without repository activity; the report says so when it sees
+# no macOS runs.
 on:
   schedule:
     - cron: "7 12 1 * *"
   workflow_dispatch:
     inputs:
       post:
-        description: Post the report as a comment on the tracking issue
+        description: Post the report as a comment on the tracking issue and publish the facts file
         type: boolean
         default: true
 
 permissions:
   actions: read
   issues: write
-  contents: read
+  contents: write
 
 jobs:
   report:
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      POST: ${{ github.event_name == 'workflow_dispatch' && inputs.post || 'true' }}
+      FACTS_OUT: ${{ runner.temp }}/status.json
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -36,5 +41,19 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           WORKFLOW: macos.yml
-          POST: ${{ github.event_name == 'workflow_dispatch' && inputs.post || 'true' }}
         run: node scripts/macos-report.mjs
+      - name: Publish the facts file to the macos-report branch
+        if: env.POST == 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          dir="$(mktemp -d)"
+          cp "$FACTS_OUT" "$dir/status.json"
+          cd "$dir"
+          git init -q -b macos-report
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add status.json
+          git commit -q -m "macOS monthly facts"
+          git push -q --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" macos-report

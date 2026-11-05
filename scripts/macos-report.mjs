@@ -93,7 +93,9 @@ export function summarize(runs, now = new Date()) {
   } else {
     lines.push("Needs attention: look at the runs above. This issue stays open.");
   }
-  return { status, recommendClose, notVerified30: notVerified30.length, failed30: failed30.length, markdown: lines.join("\n") };
+  // The facts file is read by an automatic monthly reviewer, so it holds only fixed words and numbers: never a job name, title or any other text.
+  const facts = { schema: 1, generated: date, status, passed: totals.passed, failed: totals.failed, noRunner: totals.noRunner, unverifiedRuns: notVerified30.length, recommendClose };
+  return { status, recommendClose, notVerified30: notVerified30.length, failed30: failed30.length, facts, markdown: lines.join("\n") };
 }
 
 /** The number of the open "macOS CI:" tracking issue, ignoring pull requests, or null. */
@@ -131,6 +133,11 @@ async function main() {
   }
   const result = summarize(runs);
   console.log(result.markdown);
+  if (process.env.FACTS_OUT) {
+    const { writeFileSync } = await import("node:fs");
+    writeFileSync(process.env.FACTS_OUT, `${JSON.stringify(result.facts, null, 2)}\n`);
+    console.log(`\nFacts written to ${process.env.FACTS_OUT}.`);
+  }
   if (!post) return;
   const number = pickIssue(await api(`/repos/${repo}/issues?state=open&per_page=100`));
   if (number === null) throw new Error("no open issue whose title starts with 'macOS CI:' was found");
